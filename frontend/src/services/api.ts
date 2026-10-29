@@ -294,4 +294,6 @@ export const api = {
   getSettings: () => apiClient.get<CompanySettings>('/settings'),
   updateSettings: (data: any) => apiClient.put<CompanySettings>('/settings', data),
   getAIConfig: () => apiClient.get('/ai-config'),
+  testDetector: (text: string) => apiClient.post('/ai-config/test-detector', { text }),
+  testGrounding: (query: string, threshold?: number) => apiClient.post('/ai-config/test-grounding', { query, threshold }),
 };
