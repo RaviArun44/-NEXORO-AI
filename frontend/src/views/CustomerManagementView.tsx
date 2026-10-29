@@ -283,3 +283,4 @@ export const CustomerManagementView: React.FC = () => {
     </div>
   );
 };
+

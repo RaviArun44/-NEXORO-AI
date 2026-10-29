@@ -84,3 +84,4 @@ class MultilingualDetector:
         return "en", 0.90
 
 language_detector = MultilingualDetector()
+

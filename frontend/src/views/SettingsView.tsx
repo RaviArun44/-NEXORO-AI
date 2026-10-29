@@ -69,7 +69,20 @@ export const SettingsView: React.FC = () => {
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
           <div className="flex items-center space-x-2 pb-3 border-b border-slate-100">
             <Building className="w-4 h-4 text-blue-600" />
-            <h2 className="text-sm font-bold text-slate-800">Company Identity</h2>
+            <h2 className="text-sm font-bold text-slate-800">Company Identity & Branding</h2>
+          </div>
+
+          {/* KAIRA Logo Preview */}
+          <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+            <img
+              src="/kaira-logo.png"
+              alt="KAIRA Technologies"
+              className="h-10 object-contain bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-xs"
+            />
+            <div>
+              <span className="font-bold text-slate-800 block text-xs">KAIRA Technologies</span>
+              <span className="text-[11px] text-slate-500">Official Company Brand Logo</span>
+            </div>
           </div>
 
           <div className="space-y-3 text-xs">
@@ -231,3 +244,4 @@ export const SettingsView: React.FC = () => {
     </form>
   );
 };
+

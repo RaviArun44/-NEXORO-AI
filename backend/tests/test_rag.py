@@ -26,3 +26,4 @@ def test_embeddings_and_search():
     matches = rag_engine.search_relevant_chunks("What is the warranty period for voice gateway?", chunks, top_k=1, threshold=0.30)
     assert len(matches) > 0
     assert matches[0]["chunk_id"] == "c1"
+

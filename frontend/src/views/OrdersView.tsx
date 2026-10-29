@@ -53,11 +53,10 @@ export const OrdersView: React.FC = () => {
           <button
             key={st}
             onClick={() => setStatusFilter(st)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-              statusFilter === st
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${statusFilter === st
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+              }`}
           >
             {st ? st.replace('_', ' ') : 'All Orders'}
           </button>
@@ -109,13 +108,12 @@ export const OrdersView: React.FC = () => {
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        o.status === 'DELIVERED'
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${o.status === 'DELIVERED'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : o.status === 'SHIPPED'
-                          ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
-                      }`}>
+                            ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
                         {o.status}
                       </span>
                     </td>
@@ -177,11 +175,10 @@ export const OrdersView: React.FC = () => {
                     <button
                       key={st}
                       onClick={() => handleUpdateStatus(selectedOrder.id, st)}
-                      className={`py-1.5 rounded-lg font-semibold text-[11px] transition-all cursor-pointer ${
-                        selectedOrder.status === st
+                      className={`py-1.5 rounded-lg font-semibold text-[11px] transition-all cursor-pointer ${selectedOrder.status === st
                           ? 'bg-blue-600 text-white'
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                      }`}
+                        }`}
                     >
                       {st}
                     </button>
@@ -211,3 +208,4 @@ export const OrdersView: React.FC = () => {
     </div>
   );
 };
+

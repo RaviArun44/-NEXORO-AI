@@ -200,3 +200,4 @@ async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
             await websocket.close()
         except Exception:
             pass
+

@@ -39,3 +39,4 @@ async def test_unknown_question_refusal_and_handoff():
     assert res["grounded"] is False
     assert res["trigger_handoff"] is True
     assert "specialist" in res["text"].lower() or "apologize" in res["text"].lower()
+

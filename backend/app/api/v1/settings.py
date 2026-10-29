@@ -37,3 +37,4 @@ async def update_company_settings(req: CompanyUpdate, db: AsyncSession = Depends
     await db.commit()
     await db.refresh(comp)
     return comp
+

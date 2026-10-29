@@ -15,3 +15,4 @@ async def get_kpis(db: AsyncSession = Depends(get_db)):
 @router.get("/telephony-status")
 async def get_telephony_status():
     return telephony_adapter.get_gateway_status()
+

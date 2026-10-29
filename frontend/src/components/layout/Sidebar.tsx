@@ -49,19 +49,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen select-none shrink-0 sticky top-0">
-      {/* Brand & AI Avatar Header */}
-      <div className="p-4 border-b border-slate-100 flex items-center space-x-3 bg-gradient-to-r from-blue-50/50 via-white to-transparent">
-        <NexoraAvatar size="md" />
-        <div>
+      {/* Brand & KAIRA Technologies Logo Header */}
+      <div className="p-3.5 border-b border-slate-100 bg-gradient-to-r from-blue-50/40 via-white to-transparent">
+        <div className="flex items-center justify-between mb-2">
+          <img
+            src="/kaira-logo.png"
+            alt="KAIRA Technologies"
+            className="h-8 max-w-[155px] object-contain drop-shadow-xs"
+          />
+          <NexoraAvatar size="sm" />
+        </div>
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1.5">
-            <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            <span className="font-bold text-base tracking-tight bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
               NEXORA AI
             </span>
             <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
               v1.0
             </span>
           </div>
-          <p className="text-xs text-slate-500 font-medium">Virtual Receptionist Suite</p>
+          <span className="text-[10px] text-slate-400 font-medium">Virtual Receptionist</span>
         </div>
       </div>
 
@@ -90,11 +97,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
             <button
               key={item.id}
               onClick={() => setCurrentTab(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                isActive
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${isActive
                   ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`}
+                }`}
             >
               <div className="flex items-center space-x-2.5">
                 <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
@@ -102,9 +108,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
               </div>
 
               {item.badge && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700 animate-pulse'
-                }`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${isActive ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700 animate-pulse'
+                  }`}>
                   {item.badge}
                 </span>
               )}
@@ -119,8 +124,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
         })}
       </nav>
 
+      {/* KAIRA Technologies Footer Credit */}
+      <div className="px-3 pt-2 pb-0.5 text-center bg-slate-50/70 border-t border-slate-200">
+        <p className="text-[10px] text-slate-400 flex items-center justify-center space-x-1">
+          <span>Engineered by</span>
+          <span className="font-bold text-blue-600">KAIRA Technologies</span>
+        </p>
+      </div>
+
       {/* User Footer Profile */}
-      <div className="p-3 border-t border-slate-200 bg-slate-50/70">
+      <div className="p-3 bg-slate-50/70">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 min-w-0">
             <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-semibold flex items-center justify-center text-xs">
@@ -143,3 +156,4 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
     </aside>
   );
 };
+

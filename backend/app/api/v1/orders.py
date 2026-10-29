@@ -86,3 +86,4 @@ async def update_order(order_id: str, req: OrderUpdate, db: AsyncSession = Depen
     await db.commit()
     await db.refresh(order)
     return order
+

@@ -77,3 +77,4 @@ async def delete_product(product_id: str, db: AsyncSession = Depends(get_db)):
     await db.delete(prod)
     await db.commit()
     return {"status": "DELETED", "product_id": product_id}
+

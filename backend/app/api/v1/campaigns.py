@@ -80,3 +80,4 @@ async def launch_campaign(campaign_id: str, db: AsyncSession = Depends(get_db)):
     """
     result = await outbound_service.run_campaign_batch(db, campaign_id)
     return result
+

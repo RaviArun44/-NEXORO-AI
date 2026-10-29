@@ -53,3 +53,4 @@ class CampaignResponse(BaseModel):
 
     class Config:
         from_attributes = True
+

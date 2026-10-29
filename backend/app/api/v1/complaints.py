@@ -68,3 +68,4 @@ async def update_complaint(complaint_id: str, req: ComplaintUpdate, db: AsyncSes
     await db.commit()
     await db.refresh(complaint)
     return complaint
+

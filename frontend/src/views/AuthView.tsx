@@ -48,6 +48,13 @@ export const AuthView: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        <div className="flex justify-center mb-4">
+          <img
+            src="/kaira-logo.png"
+            alt="KAIRA Technologies"
+            className="h-10 object-contain drop-shadow-xs"
+          />
+        </div>
         <div className="flex justify-center mb-3">
           <NexoraAvatar size="lg" />
         </div>
@@ -56,6 +63,9 @@ export const AuthView: React.FC = () => {
         </h2>
         <p className="text-xs text-slate-500 mt-1">
           Intelligent Multilingual Virtual Receptionist & Communication Suite
+        </p>
+        <p className="text-[11px] font-semibold text-blue-600 mt-0.5">
+          Engineered by KAIRA Technologies
         </p>
       </div>
 
@@ -168,3 +178,4 @@ export const AuthView: React.FC = () => {
     </div>
   );
 };
+

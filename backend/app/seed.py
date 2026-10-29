@@ -459,3 +459,4 @@ async def seed_initial_data():
 
         await session.commit()
         logger.info("Database successfully seeded with realistic enterprise data.")
+

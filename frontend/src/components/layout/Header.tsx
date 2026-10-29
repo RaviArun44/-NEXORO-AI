@@ -39,8 +39,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLiveCall }) => {
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-20">
-      {/* Left: Telephony Gateway & Multi-language Badge */}
+      {/* Left: Company Logo, Telephony Gateway & Multi-language Badge */}
       <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 border-r border-slate-200 pr-4">
+          <img
+            src="/kaira-logo.png"
+            alt="KAIRA Technologies"
+            className="h-6 object-contain"
+          />
+        </div>
+
         <div className="flex items-center space-x-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-medium border border-emerald-200">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -111,3 +119,4 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLiveCall }) => {
     </header>
   );
 };
+

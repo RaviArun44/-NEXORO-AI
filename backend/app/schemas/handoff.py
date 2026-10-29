@@ -36,3 +36,4 @@ class HandoffTicketResponse(BaseModel):
 
     class Config:
         from_attributes = True
+

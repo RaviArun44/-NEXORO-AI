@@ -32,3 +32,4 @@ class ComplaintResponse(ComplaintBase):
 
     class Config:
         from_attributes = True
+

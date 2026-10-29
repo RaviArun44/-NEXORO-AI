@@ -58,3 +58,4 @@ class VoiceStreamMessage(BaseModel):
     call_id: Optional[str] = None
     payload: Optional[str] = None
     language: Optional[str] = "auto"
+

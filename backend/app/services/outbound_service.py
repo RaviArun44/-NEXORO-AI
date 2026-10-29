@@ -140,3 +140,4 @@ class OutboundCampaignService:
         }
 
 outbound_service = OutboundCampaignService()
+

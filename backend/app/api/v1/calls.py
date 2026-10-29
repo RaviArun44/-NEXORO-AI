@@ -42,3 +42,4 @@ async def get_call(call_id: str, db: AsyncSession = Depends(get_db)):
     if not call:
         raise HTTPException(status_code=404, detail="Call record not found")
     return call
+

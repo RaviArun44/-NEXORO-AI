@@ -218,12 +218,12 @@ export const api = {
   getTelephonyStatus: () => apiClient.get('/dashboard/telephony-status'),
 
   // Live Calls
-  startCall: (caller_number?: string, language?: string) => 
+  startCall: (caller_number?: string, language?: string) =>
     apiClient.post(`/live-calls/start?caller_number=${encodeURIComponent(caller_number || '+1-800-BROWSER')}&language=${language || 'en'}`),
-  sendTurn: (call_id: string, user_text: string, language?: string) => 
+  sendTurn: (call_id: string, user_text: string, language?: string) =>
     apiClient.post(`/live-calls/turn?call_id=${call_id}&user_text=${encodeURIComponent(user_text)}&language=${language || 'auto'}`),
   bargeIn: (call_id: string) => apiClient.post(`/live-calls/barge-in?call_id=${call_id}`),
-  endCall: (call_id: string, outcome?: string) => 
+  endCall: (call_id: string, outcome?: string) =>
     apiClient.post(`/live-calls/end?call_id=${call_id}&outcome=${outcome || 'RESOLVED_BY_AI'}`),
 
   // Calls

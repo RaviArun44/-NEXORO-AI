@@ -35,3 +35,4 @@ class ProductResponse(ProductBase):
 
     class Config:
         from_attributes = True
+

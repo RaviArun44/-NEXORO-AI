@@ -34,3 +34,4 @@ api_router.include_router(employees_router, prefix="/employees", tags=["Staff Ma
 api_router.include_router(analytics_router, prefix="/analytics", tags=["Analytics & Reports"])
 api_router.include_router(settings_router, prefix="/settings", tags=["Company Settings"])
 api_router.include_router(ai_config_router, prefix="/ai-config", tags=["AI Configuration"])
+

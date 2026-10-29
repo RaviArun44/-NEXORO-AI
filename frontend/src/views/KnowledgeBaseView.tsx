@@ -329,3 +329,4 @@ export const KnowledgeBaseView: React.FC = () => {
     </div>
   );
 };
+

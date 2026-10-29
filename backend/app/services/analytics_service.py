@@ -187,3 +187,4 @@ class AnalyticsService:
         return perf
 
 analytics_service = AnalyticsService()
+

@@ -107,3 +107,4 @@ async def update_appointment(appointment_id: str, req: AppointmentUpdate, db: As
     await db.commit()
     await db.refresh(appt)
     return appt
+

@@ -67,3 +67,4 @@ async def test_live_call_cycle():
         end_res = await ac.post(f"/api/v1/live-calls/end?call_id={call_id}&outcome=RESOLVED_BY_AI")
         assert end_res.status_code == 200
         assert end_res.json()["status"] == "COMPLETED"
+

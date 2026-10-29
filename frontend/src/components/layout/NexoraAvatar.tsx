@@ -50,3 +50,4 @@ export const NexoraAvatar: React.FC<NexoraAvatarProps> = ({ size = 'md', isSpeak
     </div>
   );
 };
+

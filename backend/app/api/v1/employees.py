@@ -43,3 +43,4 @@ async def update_presence_status(
     await db.commit()
     await db.refresh(user)
     return user
+

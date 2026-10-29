@@ -49,3 +49,4 @@ class CampaignLead(Base):
     called_at = Column(DateTime, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
+

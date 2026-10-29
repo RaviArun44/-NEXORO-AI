@@ -35,3 +35,4 @@ class EmployeePerformance(BaseModel):
     transfers_accepted: int
     avg_resolution_minutes: float
     rating: float
+

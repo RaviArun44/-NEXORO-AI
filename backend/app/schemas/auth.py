@@ -21,3 +21,4 @@ class RegisterRequest(BaseModel):
     phone: Optional[str] = None
     department: Optional[str] = "Customer Support"
     role: Optional[str] = "ADMIN"
+

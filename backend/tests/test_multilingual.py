@@ -41,3 +41,4 @@ def test_transliterated_scripts():
     hinglish = "namaste, mera order kab aayega?"
     lang, _ = language_detector.detect(hinglish)
     assert lang == "hi"
+

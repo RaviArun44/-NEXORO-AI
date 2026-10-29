@@ -65,3 +65,4 @@ class TelephonyAdapter:
         return True
 
 telephony_adapter = TelephonyAdapter()
+

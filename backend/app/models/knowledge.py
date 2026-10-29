@@ -34,3 +34,4 @@ class KnowledgeChunk(Base):
     metadata_json = Column(JSON, default=dict) # page number, section header
     
     created_at = Column(DateTime, default=datetime.utcnow)
+

@@ -71,3 +71,4 @@ async def root():
         "api_docs": "/docs",
         "health": "/health"
     }
+

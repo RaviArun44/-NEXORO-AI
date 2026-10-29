@@ -39,3 +39,4 @@ class AppointmentResponse(AppointmentBase):
 class SlotCheckRequest(BaseModel):
     date: str # YYYY-MM-DD
     service_name: Optional[str] = None
+

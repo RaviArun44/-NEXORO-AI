@@ -45,3 +45,4 @@ class KnowledgeSearchResponse(BaseModel):
     matches: List[KnowledgeSearchMatch]
     total_found: int
     grounded: bool
+

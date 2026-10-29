@@ -162,3 +162,4 @@ async def test_search_knowledge(req: KnowledgeSearchRequest, db: AsyncSession = 
         "total_found": len(formatted_matches),
         "grounded": len(formatted_matches) > 0
     }
+

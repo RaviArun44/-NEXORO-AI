@@ -125,22 +125,20 @@ export const ComplaintsView: React.FC = () => {
                     </td>
                     <td className="py-3 px-4 text-slate-600">{c.category}</td>
                     <td className="py-3 px-4">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        c.priority === 'URGENT'
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${c.priority === 'URGENT'
                           ? 'bg-rose-100 text-rose-800 animate-pulse'
                           : c.priority === 'HIGH'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}>
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}>
                         {c.priority}
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        c.status === 'RESOLVED' || c.status === 'CLOSED'
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${c.status === 'RESOLVED' || c.status === 'CLOSED'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : 'bg-amber-50 text-amber-700 border border-amber-200'
-                      }`}>
+                        }`}>
                         {c.status}
                       </span>
                     </td>
@@ -321,3 +319,4 @@ export const ComplaintsView: React.FC = () => {
     </div>
   );
 };
+

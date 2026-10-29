@@ -22,3 +22,4 @@ async def get_call_trends(db: AsyncSession = Depends(get_db)):
 @router.get("/employees", response_model=List[EmployeePerformance])
 async def get_employees_performance(db: AsyncSession = Depends(get_db)):
     return await analytics_service.get_employee_performance(db)
+

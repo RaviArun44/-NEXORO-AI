@@ -51,13 +51,12 @@ export const EmployeesView: React.FC = () => {
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
                   {emp.full_name ? emp.full_name[0] : 'E'}
                 </div>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  emp.status === 'AVAILABLE'
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${emp.status === 'AVAILABLE'
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                     : emp.status === 'BUSY'
-                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                    : 'bg-slate-100 text-slate-600'
-                }`}>
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}>
                   ● {emp.status}
                 </span>
               </div>
@@ -87,11 +86,10 @@ export const EmployeesView: React.FC = () => {
                   <button
                     key={st}
                     onClick={() => handleStatusChange(emp.id, st)}
-                    className={`py-1 rounded-lg transition-all cursor-pointer ${
-                      emp.status === st
+                    className={`py-1 rounded-lg transition-all cursor-pointer ${emp.status === st
                         ? 'bg-white text-slate-900 font-bold shadow-xs'
                         : 'hover:text-slate-900'
-                    }`}
+                      }`}
                   >
                     {st.slice(0, 5)}
                   </button>
@@ -104,3 +102,4 @@ export const EmployeesView: React.FC = () => {
     </div>
   );
 };
+

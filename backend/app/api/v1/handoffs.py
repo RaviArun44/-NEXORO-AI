@@ -63,3 +63,4 @@ async def agent_handoff_alerts_socket(websocket: WebSocket):
         human_handoff_service.unregister_agent_socket(websocket)
     except Exception:
         human_handoff_service.unregister_agent_socket(websocket)
+

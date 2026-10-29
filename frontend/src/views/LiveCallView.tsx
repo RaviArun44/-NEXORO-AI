@@ -69,7 +69,7 @@ export const LiveCallView: React.FC = () => {
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
-    
+
     // Set appropriate voice / lang tag
     const langMap: Record<string, string> = {
       en: 'en-US',
@@ -307,13 +307,12 @@ export const LiveCallView: React.FC = () => {
               {Array.from({ length: 28 }).map((_, i) => (
                 <div
                   key={i}
-                  className={`w-1 rounded-full transition-all duration-150 ${
-                    isSpeaking
+                  className={`w-1 rounded-full transition-all duration-150 ${isSpeaking
                       ? 'bg-blue-500 h-8 wave-bar'
                       : isListening
-                      ? 'bg-cyan-500 h-6 wave-bar'
-                      : 'bg-slate-200 h-2'
-                  }`}
+                        ? 'bg-cyan-500 h-6 wave-bar'
+                        : 'bg-slate-200 h-2'
+                    }`}
                   style={{
                     animationDelay: `${(i % 5) * 0.15}s`,
                     height: isSpeaking ? `${Math.max(10, Math.sin(i * 0.5) * 36 + 10)}px` : undefined
@@ -362,9 +361,8 @@ export const LiveCallView: React.FC = () => {
                   <button
                     onClick={toggleSpeechRecognition}
                     title="Toggle Microphone"
-                    className={`p-3 rounded-xl text-white transition-all cursor-pointer ${
-                      isListening ? 'bg-cyan-500 ring-4 ring-cyan-200' : 'bg-slate-700 hover:bg-slate-800'
-                    }`}
+                    className={`p-3 rounded-xl text-white transition-all cursor-pointer ${isListening ? 'bg-cyan-500 ring-4 ring-cyan-200' : 'bg-slate-700 hover:bg-slate-800'
+                      }`}
                   >
                     {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
                   </button>
@@ -373,9 +371,8 @@ export const LiveCallView: React.FC = () => {
                   <button
                     onClick={() => setAudioMuted(!audioMuted)}
                     title="Toggle Speaker Output"
-                    className={`p-3 rounded-xl transition-all cursor-pointer ${
-                      audioMuted ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
+                    className={`p-3 rounded-xl transition-all cursor-pointer ${audioMuted ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
                   >
                     {audioMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                   </button>
@@ -417,11 +414,10 @@ export const LiveCallView: React.FC = () => {
                   key={idx}
                   disabled={!callActive}
                   onClick={() => handleSendTurn(sc.query)}
-                  className={`w-full text-left p-2 rounded-xl text-xs transition-all border ${
-                    callActive
+                  className={`w-full text-left p-2 rounded-xl text-xs transition-all border ${callActive
                       ? 'bg-slate-50 hover:bg-blue-50/70 border-slate-200/70 text-slate-700 cursor-pointer'
                       : 'bg-slate-50/50 border-slate-100 text-slate-400 cursor-not-allowed'
-                  }`}
+                    }`}
                 >
                   <p className="font-semibold text-slate-800">{sc.label}</p>
                   <p className="text-[11px] text-slate-500 truncate mt-0.5">{sc.query}</p>
@@ -480,11 +476,10 @@ export const LiveCallView: React.FC = () => {
                   </div>
 
                   <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-xs ${
-                      turn.speaker === 'customer'
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-xs ${turn.speaker === 'customer'
                         ? 'bg-blue-600 text-white rounded-br-xs'
                         : 'bg-slate-100 text-slate-800 rounded-bl-xs border border-slate-200/60'
-                    }`}
+                      }`}
                   >
                     <p>{turn.text}</p>
 
@@ -548,3 +543,4 @@ export const LiveCallView: React.FC = () => {
     </div>
   );
 };
+

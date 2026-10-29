@@ -77,3 +77,4 @@ async def delete_customer(customer_id: str, db: AsyncSession = Depends(get_db)):
     await db.delete(customer)
     await db.commit()
     return {"status": "DELETED", "customer_id": customer_id}
+

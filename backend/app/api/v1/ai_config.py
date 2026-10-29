@@ -26,3 +26,4 @@ async def get_ai_configuration():
         "ollama_base_url": settings.OLLAMA_BASE_URL,
         "default_model": settings.DEFAULT_LLM_MODEL
     }
+

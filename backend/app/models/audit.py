@@ -17,3 +17,4 @@ class AuditLog(Base):
     details = Column(JSON, default=dict)
     
     timestamp = Column(DateTime, default=datetime.utcnow)
+
