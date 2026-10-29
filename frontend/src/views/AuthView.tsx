@@ -49,11 +49,13 @@ export const AuthView: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="flex justify-center mb-4">
-          <img
-            src="/kaira-logo.png"
-            alt="KAIRA Technologies"
-            className="h-10 object-contain drop-shadow-xs"
-          />
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm inline-flex items-center justify-center">
+            <img
+              src="/kaira-logo.png"
+              alt="KAIRA Technologies"
+              className="h-14 w-auto max-w-[240px] object-contain drop-shadow-xs"
+            />
+          </div>
         </div>
         <div className="flex justify-center mb-3">
           <NexoraAvatar size="lg" />
@@ -64,9 +66,10 @@ export const AuthView: React.FC = () => {
         <p className="text-xs text-slate-500 mt-1">
           Intelligent Multilingual Virtual Receptionist & Communication Suite
         </p>
-        <p className="text-[11px] font-semibold text-blue-600 mt-0.5">
-          Engineered by KAIRA Technologies
-        </p>
+        <div className="inline-flex items-center space-x-1.5 mt-2.5 bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
+          <span>Engineered & Built by</span>
+          <span className="font-bold">KAIRA Technologies</span>
+        </div>
       </div>
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">

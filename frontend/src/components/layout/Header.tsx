@@ -41,11 +41,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLiveCall }) => {
     <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-20">
       {/* Left: Company Logo, Telephony Gateway & Multi-language Badge */}
       <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2 border-r border-slate-200 pr-4">
+        <div className="flex items-center space-x-2 border-r border-slate-200 pr-5">
           <img
             src="/kaira-logo.png"
             alt="KAIRA Technologies"
-            className="h-6 object-contain"
+            className="h-9 w-auto max-w-[170px] object-contain drop-shadow-xs"
           />
         </div>
 
@@ -79,25 +79,22 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLiveCall }) => {
         <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-xl text-xs font-medium text-slate-600">
           <button
             onClick={() => handlePresenceChange('AVAILABLE')}
-            className={`px-2 py-1 rounded-lg transition-all ${
-              presence === 'AVAILABLE' ? 'bg-white text-emerald-700 shadow-xs font-semibold' : 'hover:text-slate-900'
-            }`}
+            className={`px-2 py-1 rounded-lg transition-all ${presence === 'AVAILABLE' ? 'bg-white text-emerald-700 shadow-xs font-semibold' : 'hover:text-slate-900'
+              }`}
           >
             ● Available
           </button>
           <button
             onClick={() => handlePresenceChange('BUSY')}
-            className={`px-2 py-1 rounded-lg transition-all ${
-              presence === 'BUSY' ? 'bg-white text-amber-700 shadow-xs font-semibold' : 'hover:text-slate-900'
-            }`}
+            className={`px-2 py-1 rounded-lg transition-all ${presence === 'BUSY' ? 'bg-white text-amber-700 shadow-xs font-semibold' : 'hover:text-slate-900'
+              }`}
           >
             ● Busy
           </button>
           <button
             onClick={() => handlePresenceChange('OFFLINE')}
-            className={`px-2 py-1 rounded-lg transition-all ${
-              presence === 'OFFLINE' ? 'bg-white text-slate-600 shadow-xs font-semibold' : 'hover:text-slate-900'
-            }`}
+            className={`px-2 py-1 rounded-lg transition-all ${presence === 'OFFLINE' ? 'bg-white text-slate-600 shadow-xs font-semibold' : 'hover:text-slate-900'
+              }`}
           >
             ○ Offline
           </button>

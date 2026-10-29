@@ -73,15 +73,17 @@ export const SettingsView: React.FC = () => {
           </div>
 
           {/* KAIRA Logo Preview */}
-          <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl border border-slate-200/80">
-            <img
-              src="/kaira-logo.png"
-              alt="KAIRA Technologies"
-              className="h-10 object-contain bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-xs"
-            />
+          <div className="flex items-center space-x-4 p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+            <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-center">
+              <img
+                src="/kaira-logo.png"
+                alt="KAIRA Technologies"
+                className="h-14 w-auto max-w-[200px] object-contain drop-shadow-xs"
+              />
+            </div>
             <div>
-              <span className="font-bold text-slate-800 block text-xs">KAIRA Technologies</span>
-              <span className="text-[11px] text-slate-500">Official Company Brand Logo</span>
+              <span className="font-bold text-slate-800 block text-sm">KAIRA Technologies</span>
+              <span className="text-xs text-slate-500">Official Platform Builder & Master Corporate Branding</span>
             </div>
           </div>
 
