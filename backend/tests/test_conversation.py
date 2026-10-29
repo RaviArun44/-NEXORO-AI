@@ -1,0 +1,41 @@
+import pytest
+from app.services.ai_engine import ai_engine
+
+@pytest.mark.asyncio
+async def test_grounded_response_with_product_data():
+    product_data = {
+        "product": {
+            "sku": "NEX-VOICE-PRO",
+            "name": "NEXORA Pro AI Voice Gateway",
+            "price": 899.00,
+            "currency": "USD",
+            "stock_quantity": 24
+        }
+    }
+    
+    res = await ai_engine.generate_response(
+        customer_query="How much is the voice gateway and is it in stock?",
+        conversation_history=[],
+        grounded_context=[],
+        business_data=product_data,
+        forced_language="en"
+    )
+    
+    assert res["grounded"] is True
+    assert "899" in res["text"]
+    assert "NEXORA Pro AI Voice Gateway" in res["text"]
+    assert res["trigger_handoff"] is False
+
+@pytest.mark.asyncio
+async def test_unknown_question_refusal_and_handoff():
+    res = await ai_engine.generate_response(
+        customer_query="What is the internal personal home address of the CEO?",
+        conversation_history=[],
+        grounded_context=[],
+        business_data=None,
+        forced_language="en"
+    )
+    
+    assert res["grounded"] is False
+    assert res["trigger_handoff"] is True
+    assert "specialist" in res["text"].lower() or "apologize" in res["text"].lower()

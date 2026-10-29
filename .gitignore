@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+backend/env/
+*.db
+*.sqlite3
+data_storage/uploads/*
+data_storage/recordings/*
+!data_storage/uploads/.gitkeep
+!data_storage/recordings/.gitkeep
+.pytest_cache/
+.env
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.oxlintrc.json
+.DS_Store
+Thumbs.db
