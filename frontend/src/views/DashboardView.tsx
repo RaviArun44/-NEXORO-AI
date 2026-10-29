@@ -57,15 +57,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
       {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 rounded-2xl p-6 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center space-x-2.5 flex-wrap gap-y-2 mb-2">
-            <div className="bg-white px-3 py-1.5 rounded-xl shadow-xs flex items-center border border-slate-100">
-              <img
-                src="/kaira-logo.png"
-                alt="KAIRA Technologies"
-                className="h-6 w-auto max-w-[140px] object-contain"
-              />
-            </div>
-            <span className="bg-white/20 text-white text-xs px-2.5 py-1 rounded-full font-semibold uppercase tracking-wider backdrop-blur-xs">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+            <span className="bg-white/20 text-white text-xs px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider backdrop-blur-xs">
               Autonomous Multilingual Receptionist
             </span>
             <span className="text-xs text-blue-100">
