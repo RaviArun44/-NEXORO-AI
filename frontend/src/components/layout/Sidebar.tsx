@@ -6,7 +6,6 @@ import {
   ShoppingCart,
   Headphones,
   BookOpen,
-  Cpu,
   LogOut
 } from 'lucide-react';
 import { NexoraAvatar } from './NexoraAvatar';
@@ -20,7 +19,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) => {
   const { user, logout, pendingHandoffsCount } = useAuth();
 
-  // Core essential modules curated specifically for KAIRA Technologies presentation
+  // Core business operations modules for KAIRA Technologies
   const navItems = [
     { id: 'dashboard', label: 'Call Monitoring & Dashboard', icon: LayoutDashboard },
     { id: 'live-calls', label: 'Live Voice Receptionist', icon: PhoneCall, badge: 'Live' },
@@ -28,7 +27,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
     { id: 'orders', label: 'Order Tracking', icon: ShoppingCart },
     { id: 'handoff', label: 'Human Handoff Desk', icon: Headphones, count: pendingHandoffsCount },
     { id: 'knowledge', label: 'Company Knowledge Base', icon: BookOpen },
-    { id: 'ai-config', label: 'AI Models & Voice Engine', icon: Cpu, badge: 'AI Models' },
   ];
 
   return (

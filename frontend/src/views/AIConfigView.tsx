@@ -124,25 +124,22 @@ export const AIConfigView: React.FC = () => {
         <div className="flex items-center bg-white/10 p-1 rounded-xl backdrop-blur-xs shrink-0 text-xs font-semibold">
           <button
             onClick={() => setActiveTab('models')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              activeTab === 'models' ? 'bg-white text-slate-900 shadow-xs' : 'text-blue-100 hover:text-white'
-            }`}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${activeTab === 'models' ? 'bg-white text-slate-900 shadow-xs' : 'text-blue-100 hover:text-white'
+              }`}
           >
             Model Stack Matrix
           </button>
           <button
             onClick={() => setActiveTab('playground')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              activeTab === 'playground' ? 'bg-white text-slate-900 shadow-xs' : 'text-blue-100 hover:text-white'
-            }`}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${activeTab === 'playground' ? 'bg-white text-slate-900 shadow-xs' : 'text-blue-100 hover:text-white'
+              }`}
           >
             Live Model Playground
           </button>
           <button
             onClick={() => setActiveTab('settings')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              activeTab === 'settings' ? 'bg-white text-slate-900 shadow-xs' : 'text-blue-100 hover:text-white'
-            }`}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-xs' : 'text-blue-100 hover:text-white'
+              }`}
           >
             Thresholds & Tuning
           </button>
