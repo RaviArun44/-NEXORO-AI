@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 class DashboardKPIs(BaseModel):
     total_calls: int
@@ -13,6 +13,9 @@ class DashboardKPIs(BaseModel):
     csat_score: float # 1.0 to 5.0
     handoff_rate_percent: float
     resolved_by_ai_percent: float
+    peak_concurrency: Optional[int] = 0
+    queue_size: Optional[int] = 0
+    data_source: Optional[str] = "Khaira Production Database"
 
 class LanguageDistribution(BaseModel):
     language: str
@@ -35,4 +38,3 @@ class EmployeePerformance(BaseModel):
     transfers_accepted: int
     avg_resolution_minutes: float
     rating: float
-

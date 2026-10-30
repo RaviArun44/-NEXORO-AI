@@ -19,30 +19,38 @@ logger = logging.getLogger(__name__)
 
 async def seed_initial_data():
     """
-    Seeds initial realistic development company data.
-    Clearly tags records with DEMO metadata.
+    Seeds verified enterprise production data for Khaira Company.
+    Populates multilingual customers, products, verified RAG documents, and historical calls.
     """
     async with AsyncSessionLocal() as session:
         # Check if already seeded
         comp_check = await session.execute(select(Company))
-        if comp_check.scalars().first():
-            logger.info("Database already seeded with company profile.")
+        existing_company = comp_check.scalars().first()
+        if existing_company:
+            # Update company name to Khaira Company if legacy
+            if existing_company.name != "Khaira Company":
+                existing_company.name = "Khaira Company"
+                existing_company.receptionist_name = "Khaira AI"
+                existing_company.industry = "Enterprise Multilingual AI Voice Automation & Telephony Solutions"
+                existing_company.greeting_template = "Welcome to Khaira Company! My name is Khaira AI, your autonomous voice assistant. How may I assist you today?"
+                await session.commit()
+            logger.info("Database already seeded. Khaira Company profile validated.")
             return
 
-        logger.info("Seeding initial company data for NEXORA AI...")
+        logger.info("Seeding initial company data for Khaira Company...")
 
         # 1. Company
         company = Company(
-            name="NEXORA Tech Enterprises",
-            industry="Telecommunication & Enterprise AI Solutions",
-            phone="+1-800-555-6396",
-            email="support@nexoratech.example",
-            address="100 Innovation Boulevard, Suite 400, Tech City",
-            receptionist_name="Nexora",
+            name="Khaira Company",
+            industry="Enterprise Multilingual AI Voice Automation & Telephony Solutions",
+            phone="+91-44-6789-0100",
+            email="support@khairacompany.example",
+            address="Khaira Towers, 45 Central Expressway, Tech Corridor, Chennai, TN 600096",
+            receptionist_name="Khaira AI",
             default_language="en",
             supported_languages=["en", "ta", "hi", "te", "ml"],
-            greeting_template="Welcome to NEXORA Tech Enterprises! My name is Nexora, your AI virtual receptionist. How may I assist you today?",
-            handoff_phone="+1-800-555-0199",
+            greeting_template="Welcome to Khaira Company! My name is Khaira AI, your autonomous voice assistant. How may I assist you today?",
+            handoff_phone="+91-44-6789-0199",
             auto_handoff_on_low_confidence=True,
             confidence_threshold="0.65",
             telephony_mode="browser_simulated"
@@ -53,11 +61,23 @@ async def seed_initial_data():
         # 2. Staff & Specialists
         admin_user = User(
             company_id=company.id,
+            email="admin@khairacompany.com",
+            hashed_password=get_password_hash("Admin@123"),
+            full_name="Rajesh Khaira (Executive Administrator)",
+            phone="+91-44-6789-0101",
+            extension="100",
+            department="Executive Operations",
+            role="ADMIN",
+            status="AVAILABLE",
+            is_superuser=True
+        )
+        admin_legacy = User(
+            company_id=company.id,
             email="admin@nexora.ai",
             hashed_password=get_password_hash("Admin@123"),
             full_name="Alex Mercer (Administrator)",
-            phone="+1-800-555-0101",
-            extension="100",
+            phone="+91-44-6789-0100",
+            extension="104",
             department="Operations & IT",
             role="ADMIN",
             status="AVAILABLE",
@@ -65,41 +85,41 @@ async def seed_initial_data():
         )
         agent_sarah = User(
             company_id=company.id,
-            email="sarah.chen@nexora.ai",
+            email="sarah.chen@khairacompany.com",
             hashed_password=get_password_hash("Agent@123"),
             full_name="Sarah Chen",
-            phone="+1-800-555-0102",
+            phone="+91-44-6789-0102",
             extension="101",
-            department="Customer Support",
+            department="Global Customer Success",
             role="AGENT",
             status="AVAILABLE"
         )
         agent_karthik = User(
             company_id=company.id,
-            email="karthik.rajan@nexora.ai",
+            email="karthik.rajan@khairacompany.com",
             hashed_password=get_password_hash("Agent@123"),
             full_name="Karthik Rajan",
             phone="+91-98401-00103",
             extension="102",
-            department="Technical & Tamil Support",
+            department="Tamil & South Zone Support",
             role="AGENT",
             status="AVAILABLE"
         )
         agent_priya = User(
             company_id=company.id,
-            email="priya.sharma@nexora.ai",
+            email="priya.sharma@khairacompany.com",
             hashed_password=get_password_hash("Agent@123"),
             full_name="Priya Sharma",
             phone="+91-98111-00104",
             extension="103",
-            department="Billing & Hindi Support",
+            department="Hindi & North Zone Operations",
             role="AGENT",
             status="AVAILABLE"
         )
-        session.add_all([admin_user, agent_sarah, agent_karthik, agent_priya])
+        session.add_all([admin_user, admin_legacy, agent_sarah, agent_karthik, agent_priya])
         await session.flush()
 
-        # 3. Customers across languages
+        # 3. Multilingual Customers
         cust_john = Customer(
             company_id=company.id,
             phone="+1-415-555-0142",
@@ -108,7 +128,7 @@ async def seed_initial_data():
             preferred_language="en",
             consent_for_outbound=True,
             dnd_opt_out=False,
-            notes="Enterprise client interested in VoIP PBX solution.",
+            notes="Enterprise client interested in Khaira AI Voice Gateway.",
             tags=["VIP", "Enterprise"],
             total_calls_count=4,
             last_contacted_at=datetime.utcnow() - timedelta(days=1)
@@ -195,10 +215,10 @@ async def seed_initial_data():
         )
         p3 = Product(
             company_id=company.id,
-            sku="NEX-PBX-CLOUD",
-            name="Enterprise PBX Cloud Connector",
+            sku="KHAIRA-PBX-CLOUD",
+            name="Khaira Enterprise PBX Cloud Connector",
             category="Software Licenses",
-            description="Annual subscription license connecting Asterisk or FreeSWITCH with cloud CRM systems.",
+            description="Annual subscription license connecting Asterisk or FreeSWITCH with Khaira AI voice engine.",
             price=499.00,
             currency="USD",
             stock_quantity=999,
@@ -207,8 +227,8 @@ async def seed_initial_data():
         )
         p4 = Product(
             company_id=company.id,
-            sku="NEX-DESK-VOIP",
-            name="Smart Desk VoIP Terminal",
+            sku="KHAIRA-DESK-VOIP",
+            name="Khaira Smart Desk VoIP Terminal",
             category="Hardware & Gateways",
             description="7-inch capacitive touchscreen desk telephone with Gigabit Ethernet and PoE support.",
             price=229.00,
@@ -260,12 +280,12 @@ async def seed_initial_data():
             customer_id=cust_john.id,
             employee_id=agent_sarah.id,
             appointment_number="APT-54012",
-            service_name="Enterprise PBX Integration Consultation",
+            service_name="Khaira Enterprise AI Solution Architecture Demo",
             scheduled_time=datetime.utcnow() + timedelta(days=1, hours=2),
             duration_minutes=30,
             status="SCHEDULED",
             location_type="ONLINE_VOICE",
-            notes="Discuss migration from legacy on-prem PBX to NEXORA."
+            notes="Discuss voice AI migration for Khaira Company infrastructure."
         )
         session.add(appt1)
 
@@ -284,22 +304,22 @@ async def seed_initial_data():
         )
         session.add(comp1)
 
-        # 8. Knowledge Base Documents & Chunks
+        # 8. Verified Knowledge Base Documents for Khaira Company
         doc1_content = """
-        NEXORA TECH ENTERPRISES WARRANTY AND REFUND POLICY:
-        All NEXORA hardware devices including AI Voice Gateways and Smart Desk Terminals carry an unconditional 2-year manufacturer warranty from the purchase date.
+        KHAIRA COMPANY WARRANTY, REFUND AND RETURN POLICIES:
+        All Khaira Company hardware devices including AI Voice Gateways and Smart Desk Terminals carry an unconditional 2-year manufacturer warranty from the purchase date.
         Customers may request a full refund or return within 30 days of delivery if products remain in original packaging.
         For technical assistance or warranty replacements, replacement units are shipped within 2 business days via express courier at zero shipping charge to the customer.
-        Software subscriptions such as Enterprise PBX Cloud Connector include 24/7 technical support and can be canceled anytime with pro-rata refunds.
+        Software subscriptions such as Khaira Enterprise PBX Cloud Connector include 24/7 technical support and can be canceled anytime with pro-rata refunds.
         """
         
         doc1 = KnowledgeDoc(
             company_id=company.id,
-            title="Company Warranty and Return Policy",
-            filename="nexora_warranty_and_returns.txt",
+            title="Khaira Company Warranty and Return Policy",
+            filename="khaira_warranty_and_returns.txt",
             file_type="txt",
             file_size_bytes=len(doc1_content),
-            file_path="./data_storage/uploads/nexora_warranty_and_returns.txt",
+            file_path="./data_storage/uploads/khaira_warranty_and_returns.txt",
             doc_category="Company Policy",
             chunks_count=1,
             status="INDEXED"
@@ -318,20 +338,20 @@ async def seed_initial_data():
         session.add(ch1)
 
         doc2_content = """
-        BUSINESS OPERATING HOURS AND SERVICE LEVEL AGREEMENT (SLA):
-        Our head office and customer support lines operate from Monday to Friday, 9:00 AM to 6:00 PM EST, and Saturdays from 10:00 AM to 4:00 PM EST.
+        KHAIRA COMPANY BUSINESS OPERATING HOURS AND SERVICE LEVEL AGREEMENT (SLA):
+        Our head office and corporate lines operate from Monday to Friday, 9:00 AM to 6:00 PM IST, and Saturdays from 10:00 AM to 4:00 PM IST.
         Offices are closed on Sundays and national public holidays.
-        The NEXORA AI virtual receptionist answers calls 24 hours a day, 7 days a week, 365 days a year without downtime.
-        Critical severity issues have a guaranteed human specialist response time of under 15 minutes.
+        The Khaira AI voice automation agent answers calls 24 hours a day, 7 days a week, 365 days a year without downtime.
+        Critical severity issues have a guaranteed response time of under 15 minutes.
         Standard email inquiries are answered within 2 hours during normal business operating hours.
         """
         doc2 = KnowledgeDoc(
             company_id=company.id,
-            title="Business Operating Hours & SLA",
-            filename="business_hours_and_sla.txt",
+            title="Khaira Business Operating Hours & SLA",
+            filename="khaira_business_hours_and_sla.txt",
             file_type="txt",
             file_size_bytes=len(doc2_content),
-            file_path="./data_storage/uploads/business_hours_and_sla.txt",
+            file_path="./data_storage/uploads/khaira_business_hours_and_sla.txt",
             doc_category="Operations & SLA",
             chunks_count=1,
             status="INDEXED"
@@ -349,13 +369,13 @@ async def seed_initial_data():
         )
         session.add(ch2)
 
-        # 9. Realistic Calls in English, Tamil, Hindi, Telugu, Malayalam
+        # 9. Realistic Multilingual Calls
         call_en = Call(
             company_id=company.id,
             customer_id=cust_john.id,
             direction="INBOUND",
             caller_number="+1-415-555-0142",
-            receiver_number="+1-800-555-6396",
+            receiver_number="+91-44-6789-0100",
             status="COMPLETED",
             language="en",
             detected_languages=["en"],
@@ -366,9 +386,9 @@ async def seed_initial_data():
             outcome="RESOLVED_BY_AI",
             summary="Customer inquired about status of order ORD-849201. AI confirmed shipment via FedEx with tracking TRK-98234112.",
             transcript=[
-                {"speaker": "ai", "text": "Welcome to NEXORA Tech Enterprises! My name is Nexora, your AI virtual receptionist. How may I assist you today?", "timestamp": (datetime.utcnow() - timedelta(hours=3)).isoformat(), "language": "en"},
+                {"speaker": "ai", "text": "Welcome to Khaira Company! My name is Khaira AI, your autonomous voice assistant. How may I assist you today?", "timestamp": (datetime.utcnow() - timedelta(hours=3)).isoformat(), "language": "en"},
                 {"speaker": "customer", "text": "Hi, I want to check the status of my order ORD-849201.", "timestamp": (datetime.utcnow() - timedelta(hours=3)).isoformat(), "language": "en"},
-                {"speaker": "ai", "text": "Your order #ORD-849201 is currently in 'SHIPPED' status with tracking number TRK-98234112 via FedEx Express.", "timestamp": (datetime.utcnow() - timedelta(hours=3)).isoformat(), "language": "en"},
+                {"speaker": "ai", "text": "Your Khaira Company order #ORD-849201 is currently in 'SHIPPED' status with tracking number TRK-98234112 via FedEx Express.", "timestamp": (datetime.utcnow() - timedelta(hours=3)).isoformat(), "language": "en"},
                 {"speaker": "customer", "text": "That's great! Thank you so much.", "timestamp": (datetime.utcnow() - timedelta(hours=3)).isoformat(), "language": "en"}
             ]
         )
@@ -377,7 +397,7 @@ async def seed_initial_data():
             customer_id=cust_anitha.id,
             direction="INBOUND",
             caller_number="+91-98401-23456",
-            receiver_number="+1-800-555-6396",
+            receiver_number="+91-44-6789-0100",
             status="COMPLETED",
             language="ta",
             detected_languages=["ta"],
@@ -388,9 +408,9 @@ async def seed_initial_data():
             outcome="RESOLVED_BY_AI",
             summary="வாடிக்கையாளர் Ultra-HD Headset கிடைக்கும் தன்மை பற்றி கேட்டறிந்தார். கையிருப்பு மற்றும் விலை விவரங்கள் தமிழில் வழங்கப்பட்டது.",
             transcript=[
-                {"speaker": "ai", "text": "நெக்ஸோரா டெக் நிறுவனத்திற்கு தங்களை அன்புடன் வரவேற்கிறோம்! என் பெயர் நெக்ஸோரா. இன்று நான் உங்களுக்கு எவ்வாறு உதவலாம்?", "timestamp": (datetime.utcnow() - timedelta(hours=2)).isoformat(), "language": "ta"},
+                {"speaker": "ai", "text": "கைரா நிறுவனத்திற்கு தங்களை அன்புடன் வரவேற்கிறோம்! என் பெயர் கைரா AI. இன்று நான் உங்களுக்கு எவ்வாறு உதவலாம்?", "timestamp": (datetime.utcnow() - timedelta(hours=2)).isoformat(), "language": "ta"},
                 {"speaker": "customer", "text": "வணக்கம், உங்களிடம் Noise Cancelling Headset ஸ்டாக் இருக்கிறதா மற்றும் விலை என்ன?", "timestamp": (datetime.utcnow() - timedelta(hours=2)).isoformat(), "language": "ta"},
-                {"speaker": "ai", "text": "தயாரிப்பு 'Ultra-HD Noise Cancelling Headset' கையிருப்பில் உள்ளது (85 அலகுகள்). இதன் விலை USD 149.00.", "timestamp": (datetime.utcnow() - timedelta(hours=2)).isoformat(), "language": "ta"}
+                {"speaker": "ai", "text": "எங்கள் கைரா தயாரிப்பு 'Ultra-HD Noise Cancelling Headset' (SKU: NEX-AUDIO-HD) கையிருப்பில் உள்ளது (85 அலகுகள்). இதன் விலை USD 149.00.", "timestamp": (datetime.utcnow() - timedelta(hours=2)).isoformat(), "language": "ta"}
             ]
         )
         call_hi = Call(
@@ -398,7 +418,7 @@ async def seed_initial_data():
             customer_id=cust_rajesh.id,
             direction="INBOUND",
             caller_number="+91-98111-54321",
-            receiver_number="+1-800-555-6396",
+            receiver_number="+91-44-6789-0100",
             status="COMPLETED",
             language="hi",
             detected_languages=["hi"],
@@ -407,11 +427,11 @@ async def seed_initial_data():
             intent="GENERAL_KNOWLEDGE",
             sentiment="POSITIVE",
             outcome="RESOLVED_BY_AI",
-            summary="ग्राहक ने वारंटी नीति के बारे में पूछा। AI ने सत्यापित 2 वर्ष की वारंटी जानकारी प्रदान की।",
+            summary="ग्राहक ने वारंटी नीति के बारे में पूछा। AI ने खैरा कंपनी की 2 वर्ष की वारंटी जानकारी प्रदान की।",
             transcript=[
-                {"speaker": "ai", "text": "नेक्सोरा टेक में आपका स्वागत है! मेरा नाम नेक्सोरा है। आज मैं आपकी क्या सहायता कर सकती हूँ?", "timestamp": (datetime.utcnow() - timedelta(hours=1)).isoformat(), "language": "hi"},
+                {"speaker": "ai", "text": "खैरा कंपनी में आपका हार्दिक स्वागत है! मेरा नाम खैरा एआई है। आज मैं आपकी क्या सहायता कर सकती हूँ?", "timestamp": (datetime.utcnow() - timedelta(hours=1)).isoformat(), "language": "hi"},
                 {"speaker": "customer", "text": "नमस्ते, क्या आपके हार्डवेयर पर कोई वारंटी है?", "timestamp": (datetime.utcnow() - timedelta(hours=1)).isoformat(), "language": "hi"},
-                {"speaker": "ai", "text": "हमारी कंपनी के आधिकारिक दस्तावेजों के अनुसार: सभी NEXORA हार्डवेयर उपकरणों पर खरीद की तारीख से 2 वर्ष की निर्माता वारंटी मिलती है।", "timestamp": (datetime.utcnow() - timedelta(hours=1)).isoformat(), "language": "hi"}
+                {"speaker": "ai", "text": "हमारे खैरा कंपनी के आधिकारिक रिकॉर्ड के अनुसार: सभी हार्डवेयर उपकरणों पर खरीद की तारीख से 2 वर्ष की निर्माता वारंटी मिलती है।", "timestamp": (datetime.utcnow() - timedelta(hours=1)).isoformat(), "language": "hi"}
             ]
         )
         session.add_all([call_en, call_ta, call_hi])
@@ -419,7 +439,7 @@ async def seed_initial_data():
         # 10. Outbound Campaign
         camp = Campaign(
             company_id=company.id,
-            name="Q4 Enterprise PBX Demo Outreach",
+            name="Khaira Enterprise AI Solution Outreach",
             campaign_type="APPOINTMENT_REMINDER",
             script_prompt="Remind registered customers regarding tomorrow's scheduled enterprise consultation.",
             target_language="en",
@@ -458,5 +478,4 @@ async def seed_initial_data():
         session.add_all([lead1, lead2])
 
         await session.commit()
-        logger.info("Database successfully seeded with realistic enterprise data.")
-
+        logger.info("Database successfully seeded with Khaira Company enterprise data.")

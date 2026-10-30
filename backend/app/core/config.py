@@ -1,11 +1,14 @@
 from typing import List, Optional, Union
 from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, ConfigDict
 import os
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "NEXORA AI"
-    VERSION: str = "1.0.0"
+    model_config = ConfigDict(env_file=".env", extra="ignore")
+
+    PROJECT_NAME: str = "Khaira AI Voice Automation Platform"
+    COMPANY_NAME: str = "Khaira Company"
+    VERSION: str = "2.0.0"
     API_V1_STR: str = "/api/v1"
     
     # Environment
@@ -18,7 +21,7 @@ class Settings(BaseSettings):
             return v.lower() in ("true", "1", "t", "yes", "y", "dev", "development")
         return bool(v)
 
-    SECRET_KEY: str = Field(default="nexora-secret-super-key-change-in-production-2026")
+    SECRET_KEY: str = Field(default="khaira-enterprise-voice-secret-key-prod-2026")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     ALGORITHM: str = "HS256"
     
@@ -43,6 +46,13 @@ class Settings(BaseSettings):
     FALLBACK_LLM_PROVIDER: str = Field(default="mock_local")
     CONFIDENCE_THRESHOLD: float = 0.65
     
+    # High-Volume Concurrency & Scalable Call Queue Architecture
+    MAX_CONCURRENT_CALLS: int = Field(default=1000, description="Maximum simultaneous active voice calls handled")
+    CALL_WORKER_POOL_SIZE: int = Field(default=32, description="Asynchronous worker tasks for parallel call processing")
+    CALL_QUEUE_CAPACITY: int = Field(default=5000, description="Max backlog in call waiting queue")
+    RATE_LIMIT_PER_MINUTE: int = Field(default=120, description="Max API requests per minute per caller IP/phone")
+    CALL_SESSION_TTL_SECONDS: int = Field(default=1800, description="Active call session timeout (30 mins)")
+    
     # Storage
     STORAGE_DIR: str = Field(default="./data_storage")
     UPLOAD_MAX_SIZE_MB: int = 25
@@ -50,17 +60,21 @@ class Settings(BaseSettings):
     # Telephony Gateway Configuration
     SIP_HOST: str = "127.0.0.1"
     SIP_PORT: int = 5060
-    SIP_USER: str = "nexora_agent"
-    SIP_PASSWORD: str = "nexora_sip_secret"
+    SIP_USER: str = "khaira_voice_agent"
+    SIP_PASSWORD: str = "khaira_sip_secret"
     TELEPHONY_MODE: str = Field(default="browser_simulated")
     
-    # Voice Settings
+    # Voice & Speech Settings
     DEFAULT_LANGUAGE: str = "en"
     SUPPORTED_LANGUAGES: List[str] = ["en", "ta", "hi", "te", "ml"]
+    EXTENSIBLE_LANGUAGES: List[str] = ["kn", "mr", "bn", "gu", "es", "fr", "ar"]
+    TTS_PROVIDER: str = Field(default="edge_tts", description="edge_tts, browser_native, or cloud_api")
+    STT_PROVIDER: str = Field(default="faster_whisper", description="faster_whisper, browser_native, or cloud_api")
     
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    # Compliance & Data Protection
+    DPDPA_COMPLIANCE_ENABLED: bool = Field(default=True, description="Digital Personal Data Protection Act compliance")
+    CALL_RECORDING_CONSENT_REQUIRED: bool = Field(default=True, description="Strict consent required before recording")
+    DND_SCRUBBING_ENABLED: bool = Field(default=True, description="TRAI National Do-Not-Disturb registry check")
 
 settings = Settings()
 

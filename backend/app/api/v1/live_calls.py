@@ -1,17 +1,17 @@
 import logging
-from typing import Optional
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException
+from typing import Optional, Dict, Any
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
 
 from app.core.database import get_db, AsyncSessionLocal
 from app.models.call import Call
-from app.models.company import Company
 from app.services.conversation_orchestrator import orchestrator
 from app.services.speech_service import speech_service
 from app.services.human_handoff_service import human_handoff_service
 from app.services.ai_engine import ai_engine
+from app.services.call_queue_manager import call_queue_manager
 from app.schemas.call import CallResponse
 
 logger = logging.getLogger(__name__)
@@ -19,21 +19,36 @@ router = APIRouter()
 
 @router.post("/start")
 async def start_live_call(
-    caller_number: str = "+1-800-BROWSER-TEST",
+    caller_number: str = "+91-98401-00199",
     direction: str = "INBOUND",
     language: str = "en",
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Initializes a new live voice call session.
+    Initializes a new live voice call session with concurrency throttle & rate-limiting checks.
     Returns initial greeting tailored to the selected language.
     """
+    # 1. Rate Limiting Check
+    if not call_queue_manager.check_rate_limit(caller_number):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Too many call requests in a short period."
+        )
+
+    # 2. Acquire Concurrency Slot
+    acquired = await call_queue_manager.acquire_concurrency_slot(timeout=4.0)
+    if not acquired:
+        raise HTTPException(
+            status_code=503,
+            detail="All AI voice agent channels are currently saturated. Please try again shortly."
+        )
+
     greeting = ai_engine.LANGUAGE_GREETINGS.get(language, ai_engine.LANGUAGE_GREETINGS["en"])
 
     call = Call(
         direction=direction,
         caller_number=caller_number,
-        receiver_number="+1-800-555-6396",
+        receiver_number="+91-44-6789-0100",
         status="IN_PROGRESS",
         language=language,
         detected_languages=[language],
@@ -54,7 +69,7 @@ async def start_live_call(
     session.language = language
     session.turns = call.transcript
 
-    tts = await speech_service.synthesize_speech(greeting, language)
+    tts = await speech_service.synthesize_speech(greeting, language, call_id=call.id)
 
     return {
         "call_id": call.id,
@@ -75,7 +90,7 @@ async def process_call_turn(
 ):
     """
     Processes a conversational turn for the call.
-    Executes grounded RAG, checks business entities, performs handoff if unknown.
+    Executes business workflows, grounded RAG, and sentiment analysis.
     """
     stmt = select(Call).where(Call.id == call_id)
     res = await db.execute(stmt)
@@ -110,18 +125,53 @@ async def process_call_turn(
         "reply_text": result["reply_text"],
         "language": result["language"],
         "intent": result["intent"],
+        "sentiment": result.get("sentiment", "NEUTRAL"),
         "grounded": result["grounded"],
         "trigger_handoff": result["trigger_handoff"],
+        "is_terminal": result.get("is_terminal", False),
         "handoff_ticket_id": handoff_ticket.id if handoff_ticket else None,
         "sources": result["sources"],
         "tts": result["tts"],
         "transcript": result["turn_history"]
     }
 
+@router.post("/audio-turn")
+async def process_audio_turn(
+    call_id: str,
+    audio_base64: str = Body(..., embed=True),
+    language: Optional[str] = "auto",
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Direct Speech-to-Text audio turn endpoint.
+    Accepts base64 audio from client, transcribes, processes through workflows/RAG, and synthesizes neural audio.
+    """
+    stmt = select(Call).where(Call.id == call_id)
+    res = await db.execute(stmt)
+    call = res.scalars().first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call session not found")
+
+    # Transcribe audio chunk
+    stt_result = await speech_service.transcribe_audio_chunk(audio_base64, language=language)
+    transcribed_text = stt_result.get("text", "").strip()
+
+    if not transcribed_text:
+        # Default fallback prompt if speech was inaudible
+        transcribed_text = "Hello, can you hear me?"
+
+    # Execute conversational turn
+    return await process_call_turn(
+        call_id=call_id,
+        user_text=transcribed_text,
+        language=stt_result.get("detected_language", language),
+        db=db
+    )
+
 @router.post("/barge-in")
 async def trigger_barge_in(call_id: str):
     """
-    Handles caller interruption: immediately cancels active speech playback.
+    Handles caller interruption: immediately cancels active speech synthesis and playback.
     """
     orchestrator.handle_barge_in(call_id)
     return {"status": "INTERRUPTED", "call_id": call_id}
@@ -133,9 +183,10 @@ async def end_live_call(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Ends active call and stores final transcripts and summaries.
+    Ends active call, releases concurrency slot, and stores final transcripts and summaries.
     """
     call = await orchestrator.finalize_call(db, call_id, outcome=outcome)
+    call_queue_manager.release_concurrency_slot()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
     return {
@@ -176,8 +227,10 @@ async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
                     "event": "ai_response",
                     "reply_text": result["reply_text"],
                     "language": result["language"],
+                    "sentiment": result.get("sentiment", "NEUTRAL"),
                     "grounded": result["grounded"],
                     "trigger_handoff": result["trigger_handoff"],
+                    "is_terminal": result.get("is_terminal", False),
                     "tts": result["tts"],
                     "sources": result["sources"]
                 })
@@ -200,4 +253,3 @@ async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
             await websocket.close()
         except Exception:
             pass
-

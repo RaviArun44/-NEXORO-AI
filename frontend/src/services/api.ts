@@ -41,6 +41,8 @@ export interface DashboardKPIs {
   csat_score: number;
   handoff_rate_percent: number;
   resolved_by_ai_percent: number;
+  peak_concurrency?: number;
+  queue_size?: number;
   data_source: string;
 }
 
@@ -229,6 +231,9 @@ export const api = {
   // Calls
   listCalls: (params?: any) => apiClient.get<CallRecord[]>('/calls', { params }),
   getCall: (id: string) => apiClient.get<CallRecord>(`/calls/${id}`),
+  simulateLoad: (num_calls: number = 100, turn_duration_ms: number = 15) =>
+    apiClient.post(`/calls/simulate-load?num_calls=${num_calls}&turn_duration_ms=${turn_duration_ms}`),
+  getQueueMetrics: () => apiClient.get('/calls/queue-metrics'),
 
   // Customers
   listCustomers: (params?: any) => apiClient.get<Customer[]>('/customers', { params }),
@@ -287,6 +292,7 @@ export const api = {
   // Analytics
   getAnalyticsSummary: () => apiClient.get<DashboardKPIs>('/analytics/summary'),
   getLanguagesDistribution: () => apiClient.get('/analytics/languages'),
+  getQueryCategories: () => apiClient.get('/analytics/categories'),
   getCallTrends: () => apiClient.get('/analytics/trends'),
   getEmployeePerformance: () => apiClient.get('/analytics/employees'),
 

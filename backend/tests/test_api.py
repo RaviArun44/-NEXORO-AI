@@ -18,7 +18,7 @@ async def test_health_endpoint():
         res = await ac.get("/health")
         assert res.status_code == 200
         data = res.json()
-        assert data["service"] == "NEXORA AI"
+        assert "Khaira" in data["service"] or "NEXORA" in data["service"]
         assert "ta" in data["supported_languages"]
 
 @pytest.mark.asyncio

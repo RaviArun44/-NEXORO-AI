@@ -9,31 +9,32 @@ from app.core.config import settings
 from app.core.database import engine, Base
 from app.api.v1 import api_router
 from app.seed import seed_initial_data
+from app.services.call_queue_manager import call_queue_manager
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger("nexora")
+logger = logging.getLogger("khaira")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Initializing NEXORA AI platform database schema...")
+    logger.info("Initializing Khaira AI Voice Automation Platform database schema...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database schema initialized.")
     
-    # Run seed to ensure demo company, initial products, knowledge base, and staff exist
+    # Run seed to ensure Khaira Company profile, products, knowledge base, and staff exist
     await seed_initial_data()
-    logger.info("NEXORA AI Startup Complete. Ready for Multilingual Voice Calls.")
+    logger.info("Khaira AI Startup Complete. High-Volume Multilingual Voice Engine Ready.")
     yield
-    logger.info("Shutting down NEXORA AI platform.")
+    logger.info("Shutting down Khaira AI Voice Automation Platform.")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="Intelligent Multilingual AI Receptionist & Business Communication Platform",
+    description="Enterprise Multilingual AI Voice Automation Platform for Khaira Company",
     lifespan=lifespan
 )
 
@@ -55,20 +56,29 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/health")
 async def health_check():
+    metrics = call_queue_manager.get_queue_metrics()
     return {
         "status": "healthy",
         "service": settings.PROJECT_NAME,
+        "company": settings.COMPANY_NAME,
         "version": settings.VERSION,
-        "supported_languages": ["en", "ta", "hi", "te", "ml"],
-        "telephony_mode": settings.TELEPHONY_MODE
+        "supported_languages": settings.SUPPORTED_LANGUAGES,
+        "extensible_languages": settings.EXTENSIBLE_LANGUAGES,
+        "telephony_mode": settings.TELEPHONY_MODE,
+        "concurrency": {
+            "active_calls": metrics["active_concurrent_calls"],
+            "max_capacity": metrics["max_concurrent_capacity"],
+            "queued_calls": metrics["queued_calls"],
+            "health": metrics["system_health"]
+        }
     }
 
 @app.get("/")
 async def root():
     return {
-        "name": "NEXORA AI Platform",
-        "description": "Enterprise Multilingual Virtual Receptionist & Communication Suite",
+        "name": settings.PROJECT_NAME,
+        "company": settings.COMPANY_NAME,
+        "description": "Enterprise-Level Multilingual AI Voice Automation Platform",
         "api_docs": "/docs",
         "health": "/health"
     }
-
