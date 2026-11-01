@@ -1,10 +1,11 @@
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, field_validator
+import re
 
 class CustomerRegisterRequest(BaseModel):
     name: str
     phone: str
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     password: str
     address_line1: Optional[str] = None
     address_line2: Optional[str] = None
@@ -14,8 +15,23 @@ class CustomerRegisterRequest(BaseModel):
     landmark: Optional[str] = None
     preferred_language: Optional[str] = "en"
 
+    @field_validator("phone")
+    def validate_phone(cls, v):
+        digits = re.sub(r'\D', '', str(v))
+        if len(digits) == 12 and digits.startswith('91'):
+            digits = digits[2:]
+        if len(digits) != 10:
+            raise ValueError("Phone number must be exactly 10 digits (e.g. 9876543210)")
+        return digits
+
+    @field_validator("email", mode="before")
+    def clean_email(cls, v):
+        if not v or not str(v).strip():
+            return None
+        return str(v).strip().lower()
+
 class CustomerLoginRequest(BaseModel):
-    identifier: str # Email or Phone
+    identifier: str # Email or 10-digit Phone
     password: str
 
 class CustomerProfileResponse(BaseModel):
@@ -49,4 +65,3 @@ class CustomerUpdateProfileRequest(BaseModel):
     pincode: Optional[str] = None
     landmark: Optional[str] = None
     preferred_language: Optional[str] = None
-

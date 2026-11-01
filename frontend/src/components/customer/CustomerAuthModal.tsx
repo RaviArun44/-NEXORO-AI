@@ -38,38 +38,63 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     setError('');
 
     if (isRegister) {
-      if (!name || !phone || !password) {
-        setError('Please complete all required fields.');
+      if (!name.trim()) {
+        setError('Please enter your full name.');
+        setLoading(false);
+        return;
+      }
+      const cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        setError('Mobile number must be exactly 10 digits (e.g. 9840123456).');
+        setLoading(false);
+        return;
+      }
+      if (!password.trim()) {
+        setError('Please enter a password.');
         setLoading(false);
         return;
       }
 
-      const ok = await customerRegister({
-        name,
-        phone,
-        email: email || undefined,
-        password,
-        address_line1: addressLine1 || undefined,
-        city,
-        state,
-        pincode,
-        preferred_language: preferredLanguage
-      });
+      try {
+        const ok = await customerRegister({
+          name: name.trim(),
+          phone: cleanPhone,
+          email: email.trim() ? email.trim().toLowerCase() : undefined,
+          password: password.trim(),
+          address_line1: addressLine1.trim() || undefined,
+          city,
+          state,
+          pincode,
+          preferred_language: preferredLanguage
+        });
 
-      if (ok) {
-        setRegisteredCode('Customer Registered');
-        setTimeout(() => {
-          onClose();
-        }, 1200);
-      } else {
-        setError('Registration failed. This mobile number or email might already be registered.');
+        if (ok) {
+          setRegisteredCode('Customer Registered');
+          setTimeout(() => {
+            onClose();
+          }, 1200);
+        } else {
+          setError('Registration failed. This 10-digit mobile number or email might already be registered.');
+        }
+      } catch (err: any) {
+        const msg = err?.response?.data?.detail || 'Registration failed. Please check your details.';
+        setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
       }
     } else {
-      const ok = await customerLogin(phone || email, password);
-      if (ok) {
-        onClose();
-      } else {
-        setError('Invalid mobile number/email or password. Please try again.');
+      try {
+        const rawIdent = (phone || email).trim();
+        const digits = rawIdent.replace(/\D/g, '');
+        const cleanIdent = digits.length === 10 ? digits : rawIdent;
+        
+        const ok = await customerLogin(cleanIdent, password);
+        if (ok) {
+          onClose();
+        } else {
+          setError('Invalid 10-digit mobile number/email or password. Please try again.');
+        }
+      } catch (err: any) {
+        const msg = err?.response?.data?.detail || 'Login failed. Please verify credentials.';
+        setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
       }
     }
     setLoading(false);
@@ -77,30 +102,31 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
   const handleDemoFill = (lang: string = 'en') => {
     if (lang === 'ta') {
-      setPhone('+91-98401-23456');
-      setPassword('Customer@123');
+      setPhone('9840123456');
+      setPassword('customer');
       setName('Ananya Sharma');
       setEmail('ananya.sharma@example.com');
       setPreferredLanguage('ta');
     } else if (lang === 'te') {
-      setPhone('+91-94401-87654');
-      setPassword('Customer@123');
+      setPhone('9440187654');
+      setPassword('customer');
       setName('Vikramaditya Reddy');
       setEmail('vikram.reddy@example.com');
       setPreferredLanguage('te');
     } else if (lang === 'kn') {
-      setPhone('+91-98801-65432');
-      setPassword('Customer@123');
+      setPhone('9880165432');
+      setPassword('customer');
       setName('Priya Gowda');
       setEmail('priya.gowda@example.com');
       setPreferredLanguage('kn');
     } else {
-      setPhone('+91-98111-54321');
-      setPassword('Customer@123');
+      setPhone('9811154321');
+      setPassword('customer');
       setName('Arjun Kapoor');
       setEmail('arjun.kapoor@example.com');
       setPreferredLanguage('en');
     }
+    setError('');
   };
 
   return (
@@ -160,7 +186,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6">
+        <div className="p-6 max-h-[80vh] overflow-y-auto">
           {error && (
             <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
               {error}
@@ -186,25 +212,40 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                     placeholder="e.g. Ananya Sharma"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                {isRegister ? 'Mobile Number *' : 'Mobile Number or Email *'}
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="font-semibold text-slate-700">
+                  {isRegister ? 'Mobile Number (10 Digits) *' : '10-Digit Mobile Number or Email *'}
+                </label>
+                {isRegister && (
+                  <span className={`text-[10px] font-mono ${phone.length === 10 ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                    {phone.length}/10 digits
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 <input
-                  type="text"
+                  type={isRegister ? 'tel' : 'text'}
                   required
-                  placeholder={isRegister ? '+91-98401-23456' : 'Enter registered mobile or email'}
+                  maxLength={isRegister ? 10 : undefined}
+                  pattern={isRegister ? '[0-9]{10}' : undefined}
+                  placeholder={isRegister ? 'e.g. 9840123456' : 'Enter 10-digit mobile or email'}
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => {
+                    if (isRegister) {
+                      setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
+                    } else {
+                      setPhone(e.target.value);
+                    }
+                  }}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-800"
                 />
               </div>
             </div>
@@ -219,7 +260,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                     placeholder="name@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                   />
                 </div>
               </div>
@@ -235,7 +276,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                 />
               </div>
             </div>
@@ -251,7 +292,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                       placeholder="Street, Building, Flat / House No."
                       value={addressLine1}
                       onChange={(e) => setAddressLine1(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                     />
                   </div>
                 </div>
@@ -263,7 +304,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                       type="text"
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                     />
                   </div>
                   <div>
@@ -272,7 +313,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                       type="text"
                       value={state}
                       onChange={(e) => setState(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                     />
                   </div>
                   <div>
@@ -281,7 +322,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                       type="text"
                       value={pincode}
                       onChange={(e) => setPincode(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                     />
                   </div>
                 </div>
@@ -294,7 +335,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                   <select
                     value={preferredLanguage}
                     onChange={(e) => setPreferredLanguage(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                   >
                     <option value="en">English (Indian English Voice)</option>
                     <option value="ta">Tamil (தமிழ் - Pallavi Voice)</option>
@@ -318,7 +359,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
           {/* Quick Demo Fill Buttons */}
           <div className="mt-5 pt-4 border-t border-slate-100">
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">
-              Quick 1-Click Demo Accounts
+              Quick 1-Click Demo Accounts (Password: customer)
             </p>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <button
@@ -326,28 +367,28 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 onClick={() => handleDemoFill('ta')}
                 className="p-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 rounded-lg text-slate-700 text-left font-medium transition-colors cursor-pointer"
               >
-                🇮🇳 Tamil Customer (Ananya)
+                🇮🇳 Tamil: 9840123456
               </button>
               <button
                 type="button"
                 onClick={() => handleDemoFill('te')}
                 className="p-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 rounded-lg text-slate-700 text-left font-medium transition-colors cursor-pointer"
               >
-                🇮🇳 Telugu Customer (Vikram)
+                🇮🇳 Telugu: 9440187654
               </button>
               <button
                 type="button"
                 onClick={() => handleDemoFill('kn')}
                 className="p-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 rounded-lg text-slate-700 text-left font-medium transition-colors cursor-pointer"
               >
-                🇮🇳 Kannada Customer (Priya)
+                🇮🇳 Kannada: 9880165432
               </button>
               <button
                 type="button"
                 onClick={() => handleDemoFill('en')}
                 className="p-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 rounded-lg text-slate-700 text-left font-medium transition-colors cursor-pointer"
               >
-                🇬🇧 English Customer (Arjun)
+                🇬🇧 English: 9811154321
               </button>
             </div>
           </div>
@@ -356,4 +397,3 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     </div>
   );
 };
-

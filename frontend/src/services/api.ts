@@ -329,6 +329,11 @@ export const api = {
   // Role & User Auth
   login: (data: { username_or_email?: string; email?: string; username?: string; password: string; role?: string; remember_me?: boolean }) =>
     apiClient.post('/auth/login', data),
+  userLogin: (data: { name: string; email: string; phone: string }) => apiClient.post('/auth/user-login', data),
+  customerPortalRegister: (data: { name: string; email: string; phone: string; password: string; username?: string; preferred_language?: string }) =>
+    apiClient.post<{ access_token: string; token_type: string; user: User }>('/auth/customer-register', data),
+  customerPortalLogin: (data: { identifier: string; password: string }) =>
+    apiClient.post<{ access_token: string; token_type: string; user: User }>('/auth/customer-login', data),
   register: (data: {
     full_name: string;
     username?: string;
@@ -414,6 +419,7 @@ export const api = {
   getDashboardKPIs: () => apiClient.get<DashboardKPIs>('/dashboard/kpis'),
   getKPIs: () => apiClient.get<DashboardKPIs>('/dashboard/kpis'),
   getTelephonyStatus: () => apiClient.get('/dashboard/telephony-status'),
+  // Analytics & Metrics
   getAnalyticsSummary: () => apiClient.get('/analytics/summary'),
   getLanguagesDistribution: () => apiClient.get<any[]>('/analytics/languages'),
   getLanguageDistribution: () => apiClient.get<any[]>('/analytics/languages'),
@@ -424,6 +430,9 @@ export const api = {
   getQueueMetrics: () => apiClient.get<any>('/calls/queue-metrics'),
   simulateLoad: (callsCount: number = 100, concurrency: number = 10) =>
     apiClient.post<any>('/calls/simulate-load', null, { params: { calls_count: callsCount, concurrency } }),
+
+  // Real-time Call Signaling & Requests
+
 
   // Calls
   getCalls: (params?: any) => apiClient.get<CallRecord[]>('/calls', { params }),
@@ -459,8 +468,6 @@ export const api = {
     }),
   synthesizeVoice: (text: string, language?: string, callId?: string) =>
     apiClient.post('/live-calls/synthesize-voice', { text, language, call_id: callId }),
-  userLogin: (data: { name: string; email: string; phone: string }) =>
-    apiClient.post('/auth/user-login', data),
 
   // Customers (Admin)
   getCustomers: (params?: any) => apiClient.get<Customer[]>('/customers', { params }),

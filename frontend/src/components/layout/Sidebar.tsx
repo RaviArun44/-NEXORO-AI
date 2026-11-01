@@ -98,21 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
         </div>
       </div>
 
-      {/* Multilingual Active Indicator */}
-      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
-        <span className="font-medium text-slate-500">Supported:</span>
-        <div className="flex items-center space-x-1 font-mono font-semibold text-blue-700">
-          <span>EN</span>
-          <span>•</span>
-          <span>தமிழ்</span>
-          <span>•</span>
-          <span>हिन्दी</span>
-          <span>•</span>
-          <span>తెలుగు</span>
-          <span>•</span>
-          <span>മല</span>
-        </div>
-      </div>
+      
 
       {/* Customer Storefront Live Switch Button */}
       <div className="p-3 pb-1">

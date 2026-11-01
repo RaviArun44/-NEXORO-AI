@@ -14,6 +14,7 @@ backend/data_storage/uploads/*
 backend/data_storage/recordings/*
 *.mp3
 *.wav
+*.pdf
 *.m4a
 !data_storage/uploads/.gitkeep
 !data_storage/recordings/.gitkeep

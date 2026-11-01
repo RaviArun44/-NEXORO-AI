@@ -16,7 +16,6 @@ import {
   KeyRound,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
   AtSign
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -115,7 +114,6 @@ export const AuthView: React.FC = () => {
     setError('');
     setSuccessMsg('');
 
-    // Field Validations
     if (!regFullName.trim()) {
       setError('Full Name is required.');
       return;

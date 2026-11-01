@@ -17,6 +17,10 @@ interface AuthContextType {
   customerLogout: () => void;
   refreshCustomer: () => Promise<void>;
 
+  // Customer Portal 10-Digit & Universal Auth
+  customerPortalLogin: (identifier: string, password: string) => Promise<boolean>;
+  customerPortalRegister: (data: { name: string; email: string; phone: string; password: string; preferred_language?: string }) => Promise<boolean>;
+
   // Portal State & Navigation
   portalMode: 'admin' | 'customer';
   setPortalMode: (mode: 'admin' | 'customer') => void;
@@ -26,7 +30,7 @@ interface AuthContextType {
   pendingHandoffsCount: number;
   setPendingHandoffsCount: React.Dispatch<React.SetStateAction<number>>;
 
-  // Enhanced Role-Based Authentication
+  // Unified Role-Based Auth
   token: string | null;
   login: (usernameOrEmail: string, password: string, role?: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
   userLogin: (data: { name: string; email: string; phone: string }) => Promise<boolean>;
@@ -46,7 +50,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [customerToken, setCustomerToken] = useState<string | null>(localStorage.getItem('nexora_customer_token'));
   
   const [portalMode, setPortalModeState] = useState<'admin' | 'customer'>(() => {
-    // 1. Check URL parameters and hash first
     const urlParams = new URLSearchParams(window.location.search);
     const param = urlParams.get('portal');
     if (param === 'admin' || window.location.hash.toLowerCase().includes('admin')) {
@@ -71,63 +74,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.toLowerCase();
-      if (hash.includes('admin')) {
-        setPortalModeState('admin');
-      } else if (hash.includes('customer')) {
+      if (hash.includes('customer') || hash.includes('store')) {
         setPortalModeState('customer');
+      } else if (hash.includes('admin')) {
+        setPortalModeState('admin');
       }
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  const refreshCustomer = async () => {
-    const cToken = localStorage.getItem('nexora_customer_token');
-    if (cToken) {
-      try {
-        const res = await api.customerGetMe();
-        setCustomer(res.data);
-      } catch {
-        localStorage.removeItem('nexora_customer_token');
-        setCustomerToken(null);
-        setCustomer(null);
-      }
-    }
-  };
-
+  // Initialize and validate active sessions
   useEffect(() => {
     const initSessions = async () => {
-      // 1. Check Admin Session
+      // 1. Validate Admin / User Session
       const savedAdminToken = localStorage.getItem('nexora_token');
       if (savedAdminToken) {
         try {
           const res = await api.getMe();
           setUser(res.data);
-        } catch {
+          setAdminToken(savedAdminToken);
+        } catch (err) {
+          console.warn("Session expired or invalid:", err);
           localStorage.removeItem('nexora_token');
+          localStorage.removeItem('nexora_admin_token');
           setAdminToken(null);
           setUser(null);
         }
       }
 
-      // 2. Check Customer Session
+      // 2. Validate Customer Session
       const savedCustomerToken = localStorage.getItem('nexora_customer_token');
       if (savedCustomerToken) {
         try {
-          const res = await api.customerGetMe();
+          const res = await api.getCustomerProfile();
           setCustomer(res.data);
-          
-          // Fetch initial cart count
-          try {
-            const cartRes = await api.getCart();
-            setCartCount(cartRes.data.items_count || 0);
-          } catch {
-            // Cart might be empty
-          }
-        } catch {
+          setCustomerToken(savedCustomerToken);
+
+          const cartRes = await api.getCart();
+          setCartCount(cartRes.data?.total_items || 0);
+        } catch (err) {
+          console.warn("Customer session invalid:", err);
           localStorage.removeItem('nexora_customer_token');
           setCustomerToken(null);
           setCustomer(null);
+          setCartCount(0);
         }
       }
 
@@ -137,7 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initSessions();
   }, []);
 
-  // Role & Admin Auth Handlers
+  // Universal Role & Admin Auth Handlers
   const adminLogin = async (
     usernameOrEmail: string,
     password: string,
@@ -200,6 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const adminLogout = () => {
     localStorage.removeItem('nexora_token');
+    localStorage.removeItem('nexora_admin_token');
     setAdminToken(null);
     setUser(null);
   };
@@ -213,12 +205,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCustomerToken(access_token);
       setCustomer(loggedCustomer);
       
-      // Update cart count
       try {
         const cartRes = await api.getCart();
-        setCartCount(cartRes.data.items_count || 0);
-      } catch {}
-
+        setCartCount(cartRes.data?.total_items || 0);
+      } catch (e) {
+        setCartCount(0);
+      }
       return true;
     } catch (err) {
       console.error("Customer login failed:", err);
@@ -229,15 +221,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const customerRegister = async (data: any): Promise<boolean> => {
     try {
       const res = await api.customerRegister(data);
-      const { access_token, customer: regCustomer } = res.data;
+      const { access_token, customer: registeredCustomer } = res.data;
       localStorage.setItem('nexora_customer_token', access_token);
       setCustomerToken(access_token);
-      setCustomer(regCustomer);
+      setCustomer(registeredCustomer);
       setCartCount(0);
       return true;
     } catch (err) {
       console.error("Customer registration failed:", err);
       return false;
+    }
+  };
+
+  const customerPortalRegister = async (data: { name: string; email: string; phone: string; password: string; preferred_language?: string }): Promise<boolean> => {
+    try {
+      const res = await api.customerPortalRegister(data);
+      const { access_token, user: loggedUser } = res.data;
+      localStorage.setItem('nexora_token', access_token);
+      localStorage.setItem('nexora_admin_token', access_token);
+      setAdminToken(access_token);
+      setUser(loggedUser);
+      return true;
+    } catch (err) {
+      console.error("Customer portal registration failed:", err);
+      return false;
+    }
+  };
+
+  const customerPortalLogin = async (identifier: string, password: string): Promise<boolean> => {
+    try {
+      const res = await api.customerPortalLogin({ identifier, password });
+      const { access_token, user: loggedUser } = res.data;
+      localStorage.setItem('nexora_token', access_token);
+      localStorage.setItem('nexora_admin_token', access_token);
+      setAdminToken(access_token);
+      setUser(loggedUser);
+      return true;
+    } catch (err) {
+      console.error("Customer portal login failed:", err);
+      return false;
+    }
+  };
+
+  const refreshCustomer = async () => {
+    if (!customerToken) return;
+    try {
+      const res = await api.getCustomerProfile();
+      setCustomer(res.data);
+      const cartRes = await api.getCart();
+      setCartCount(cartRes.data?.total_items || 0);
+    } catch (err) {
+      console.warn("Failed to refresh customer profile:", err);
     }
   };
 
@@ -279,6 +313,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         customerLogout,
         refreshCustomer,
 
+        customerPortalLogin,
+        customerPortalRegister,
+
         portalMode,
         setPortalMode,
         cartCount,
@@ -287,7 +324,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         pendingHandoffsCount,
         setPendingHandoffsCount,
 
-        // Backwards compatibility aliases
         token: adminToken,
         login: adminLogin,
         userLogin,

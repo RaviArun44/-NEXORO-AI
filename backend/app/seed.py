@@ -57,13 +57,14 @@ async def seed_initial_data():
                 company.supported_languages = ["en", "ta", "te", "ml", "kn", "hi"]
                 await session.flush()
 
-        # 2. Admin & Staff Accounts
+        # 2. Admin, Agent & Demo Customer Accounts
         admin_khaira_check = await session.execute(select(User).where(User.email == "admin@khairacompany.com"))
-        if not admin_khaira_check.scalars().first():
+        admin_khaira = admin_khaira_check.scalars().first()
+        if not admin_khaira:
             admin_user = User(
                 company_id=company.id,
                 email="admin@khairacompany.com",
-                hashed_password=get_password_hash("Admin@123"),
+                hashed_password=get_password_hash("admin"),
                 full_name="Rajesh Khaira (Executive Administrator)",
                 phone="+91-80-6000-4401",
                 extension="100",
@@ -73,15 +74,19 @@ async def seed_initial_data():
                 is_superuser=True
             )
             session.add(admin_user)
+        else:
+            admin_khaira.hashed_password = get_password_hash("admin")
+            admin_khaira.role = "ADMIN"
 
         admin_nexora_check = await session.execute(select(User).where(User.email == "admin@nexora.ai"))
-        if not admin_nexora_check.scalars().first():
+        admin_legacy = admin_nexora_check.scalars().first()
+        if not admin_legacy:
             admin_legacy = User(
                 company_id=company.id,
                 email="admin@nexora.ai",
-                hashed_password=get_password_hash("Admin@123"),
+                hashed_password=get_password_hash("admin"),
                 full_name="Alex Mercer (Administrator)",
-                phone="+91-80-6000-4400",
+                phone="9876543201",
                 extension="104",
                 department="Operations & IT",
                 role="ADMIN",
@@ -89,6 +94,53 @@ async def seed_initial_data():
                 is_superuser=True
             )
             session.add(admin_legacy)
+        else:
+            admin_legacy.hashed_password = get_password_hash("admin")
+            admin_legacy.role = "ADMIN"
+            admin_legacy.is_active = True
+
+        agent_nexora_check = await session.execute(select(User).where(User.email == "agent@nexora.ai"))
+        agent_legacy = agent_nexora_check.scalars().first()
+        if not agent_legacy:
+            agent_legacy = User(
+                company_id=company.id,
+                email="agent@nexora.ai",
+                hashed_password=get_password_hash("agent"),
+                full_name="Sarah Chen (AI Voice Receptionist)",
+                phone="9876543202",
+                extension="102",
+                department="Customer Voice Reception",
+                role="AGENT",
+                status="AVAILABLE",
+                is_superuser=False
+            )
+            session.add(agent_legacy)
+        else:
+            agent_legacy.hashed_password = get_password_hash("agent")
+            agent_legacy.role = "AGENT"
+            agent_legacy.is_active = True
+
+        demo_cust_check = await session.execute(select(User).where(User.email == "john.miller@example.com"))
+        demo_cust_user = demo_cust_check.scalars().first()
+        if not demo_cust_user:
+            demo_cust_user = User(
+                company_id=company.id,
+                email="john.miller@example.com",
+                hashed_password=get_password_hash("customer"),
+                full_name="John Miller",
+                phone="9876543210",
+                extension="201",
+                department="Customer Portal",
+                role="CUSTOMER",
+                status="AVAILABLE",
+                is_superuser=False
+            )
+            session.add(demo_cust_user)
+        else:
+            demo_cust_user.hashed_password = get_password_hash("customer")
+            demo_cust_user.phone = "9876543210"
+            demo_cust_user.role = "CUSTOMER"
+            demo_cust_user.is_active = True
         await session.flush()
 
         # 3. Categories (16 wide categories)
