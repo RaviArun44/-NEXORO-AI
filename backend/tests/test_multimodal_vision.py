@@ -106,3 +106,4 @@ async def test_speech_synthesis_config():
     tts_ta = await speech_service.synthesize_speech("வணக்கம்", language="ta")
     assert tts_ta["voice_id"] == "ta-IN-PallaviNeural"
     assert tts_ta["language"] == "ta"
+

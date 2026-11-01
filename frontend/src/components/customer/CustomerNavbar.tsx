@@ -1,13 +1,14 @@
+
 import React, { useState } from 'react';
-import { 
-  ShoppingBag, 
-  Search, 
-  User, 
-  Globe, 
-  LogOut, 
-  Shield, 
-  Package, 
-  ChevronDown, 
+import {
+  ShoppingBag,
+  Search,
+  User,
+  Globe,
+  LogOut,
+  Shield,
+  Package,
+  ChevronDown,
   Sparkles,
   Menu,
   X
@@ -149,9 +150,8 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
                       onLanguageChange(l.code);
                       setShowLangMenu(false);
                     }}
-                    className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-blue-50 cursor-pointer ${
-                      preferredLanguage === l.code ? 'text-blue-600 font-bold bg-blue-50/50' : 'text-slate-700'
-                    }`}
+                    className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-blue-50 cursor-pointer ${preferredLanguage === l.code ? 'text-blue-600 font-bold bg-blue-50/50' : 'text-slate-700'
+                      }`}
                   >
                     <span>{l.label}</span>
                     <span className="text-[11px] font-normal text-slate-400">{l.native}</span>
@@ -253,11 +253,10 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
         <div className="container mx-auto flex items-center space-x-2 text-xs font-medium">
           <button
             onClick={() => onSelectCategory('all')}
-            className={`px-3 py-1 rounded-lg shrink-0 cursor-pointer transition-colors ${
-              selectedCategory === 'all'
+            className={`px-3 py-1 rounded-lg shrink-0 cursor-pointer transition-colors ${selectedCategory === 'all'
                 ? 'bg-blue-600 text-white font-bold shadow-xs'
                 : 'text-slate-600 hover:bg-slate-200/80'
-            }`}
+              }`}
           >
             All 16 Categories
           </button>
@@ -266,11 +265,10 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
             <button
               key={cat.slug}
               onClick={() => onSelectCategory(cat.name)}
-              className={`px-3 py-1 rounded-lg shrink-0 cursor-pointer transition-colors ${
-                selectedCategory.toLowerCase() === cat.name.toLowerCase()
+              className={`px-3 py-1 rounded-lg shrink-0 cursor-pointer transition-colors ${selectedCategory.toLowerCase() === cat.name.toLowerCase()
                   ? 'bg-blue-600 text-white font-bold shadow-xs'
                   : 'text-slate-600 hover:bg-slate-200/80'
-              }`}
+                }`}
             >
               {cat.name}
             </button>
