@@ -437,6 +437,10 @@ export const api = {
     apiClient.post(`/live-calls/${call_id}/accept`, null, { params: { agent_id } }),
   rejectCall: (call_id: string, reason?: string) =>
     apiClient.post(`/live-calls/${call_id}/reject`, null, { params: { reason } }),
+  cancelCall: (call_id: string) =>
+    apiClient.post(`/live-calls/${call_id}/cancel`),
+  agentSpeak: (call_id: string, text: string, language?: string) =>
+    apiClient.post('/live-calls/agent-speak', { call_id, text, language }),
   getPendingCallRequests: () =>
     apiClient.get<any[]>('/live-calls/pending-requests'),
   endCall: (callId: string, outcome?: string) => apiClient.post('/live-calls/end', null, { params: { call_id: callId, outcome } }),

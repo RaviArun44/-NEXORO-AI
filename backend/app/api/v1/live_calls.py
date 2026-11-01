@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 import logging
@@ -95,12 +96,22 @@ async def start_live_call(
 
 @router.post("/request-call")
 async def request_customer_call(
-    caller_number: str = "+91-98401-00199",
-    caller_name: str = "Valued Customer",
-    language: str = "en",
-    customer_id: Optional[str] = None,
+    request: Request,
+    caller_number: Optional[str] = Query(None),
+    caller_name: Optional[str] = Query(None),
+    language: Optional[str] = Query(None),
+    customer_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
+    body_data = {}
+    try:
+        body_data = await request.json()
+    except Exception:
+        pass
+    caller_number = body_data.get("caller_number") or caller_number or "+91-98401-00199"
+    caller_name = body_data.get("caller_name") or caller_name or "Valued Customer"
+    language = body_data.get("language") or language or "en"
+    customer_id = body_data.get("customer_id") or customer_id
     """
     Called when a Customer clicks 'CALL AI AGENT'.
     Creates a Call in REQUESTED status and rings all active AI Agent consoles in real-time.
@@ -166,9 +177,16 @@ async def get_pending_call_requests():
 @router.post("/{call_id}/accept")
 async def accept_call_request(
     call_id: str,
-    agent_id: Optional[str] = None,
+    request: Request,
+    agent_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
+    body_data = {}
+    try:
+        body_data = await request.json()
+    except Exception:
+        pass
+    agent_id = body_data.get("agent_id") or agent_id
     """
     AI Agent accepts the incoming call.
     Transitions status to IN_PROGRESS, generates greeting, and notifies customer socket.
@@ -217,12 +235,54 @@ async def accept_call_request(
 
     return call_info
 
+@router.post("/{call_id}/cancel")
+async def cancel_call_request(call_id: str, db: AsyncSession = Depends(get_db)):
+    """Customer cancels call while waiting/ringing."""
+    if call_id in call_signaling.pending_calls:
+        del call_signaling.pending_calls[call_id]
+    stmt = select(Call).where(Call.id == call_id)
+    res = await db.execute(stmt)
+    call = res.scalars().first()
+    if call and call.status == "REQUESTED":
+        call.status = "CANCELLED"
+        call.outcome = "CANCELLED_BY_CUSTOMER"
+        call.end_time = datetime.utcnow()
+        await db.commit()
+    await call_signaling.notify_call_rejected(call_id, reason="Customer cancelled call")
+    return {"status": "CANCELLED", "call_id": call_id}
+
+class AgentSpeakRequest(BaseModel):
+    call_id: str
+    text: str
+    language: Optional[str] = "en"
+
+@router.post("/agent-speak")
+async def agent_speak(req: AgentSpeakRequest, db: AsyncSession = Depends(get_db)):
+    """Allows human agent to send a message / speak directly to customer."""
+    tts = await speech_service.synthesize_speech(req.text, req.language or "en", call_id=req.call_id)
+    turn = {
+        "speaker": "agent",
+        "reply_text": req.text,
+        "language": req.language or "en",
+        "tts": tts,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    await call_signaling.notify_transcript_turn(req.call_id, turn)
+    return turn
+
 @router.post("/{call_id}/reject")
 async def reject_call_request(
     call_id: str,
-    reason: str = "Agent busy",
+    request: Request,
+    reason: Optional[str] = Query("Agent busy"),
     db: AsyncSession = Depends(get_db)
 ):
+    body_data = {}
+    try:
+        body_data = await request.json()
+    except Exception:
+        pass
+    reason = body_data.get("reason") or reason or "Agent busy"
     """Rejects or cancels a requested call."""
     stmt = select(Call).where(Call.id == call_id)
     res = await db.execute(stmt)
@@ -430,10 +490,20 @@ async def trigger_barge_in(call_id: str):
 
 @router.post("/end")
 async def end_live_call(
-    call_id: str,
-    outcome: str = "RESOLVED_BY_AI",
+    request: Request,
+    call_id: Optional[str] = Query(None),
+    outcome: Optional[str] = Query("RESOLVED_BY_AI"),
     db: AsyncSession = Depends(get_db)
 ):
+    body_data = {}
+    try:
+        body_data = await request.json()
+    except Exception:
+        pass
+    call_id = body_data.get("call_id") or call_id
+    outcome = body_data.get("outcome") or outcome or "RESOLVED_BY_AI"
+    if not call_id:
+        raise HTTPException(status_code=400, detail="call_id is required")
     """
     Ends active call, releases concurrency slot, and stores final transcripts and summaries.
     """
@@ -459,12 +529,12 @@ async def agent_console_websocket(websocket: WebSocket):
     """
     WebSocket endpoint for the real-time AI Agent Operator Console.
     Receives incoming call rings, accepted calls, and live transcript turns.
+    Relays WebRTC signals and agent speech to customer.
     """
     await websocket.accept()
     call_signaling.register_agent(websocket)
     logger.info("Agent Console connected to live dispatch websocket.")
     try:
-        # Send initial pending calls immediately
         await websocket.send_json({
             "event": "SYNC_PENDING",
             "calls": call_signaling.get_pending_calls()
@@ -473,6 +543,24 @@ async def agent_console_websocket(websocket: WebSocket):
             data = await websocket.receive_text()
             if data == "ping":
                 await websocket.send_text("pong")
+                continue
+            try:
+                msg = json.loads(data)
+                ev = msg.get("event")
+                c_id = msg.get("call_id")
+                if ev in ("webrtc_offer", "webrtc_answer", "webrtc_ice") and c_id:
+                    await call_signaling.relay_webrtc_signal(c_id, websocket, msg)
+                elif ev == "agent_message" and c_id:
+                    text = msg.get("text", "")
+                    await call_signaling.notify_transcript_turn(c_id, {
+                        "speaker": "agent",
+                        "user_query": "",
+                        "reply_text": text,
+                        "language": msg.get("language", "en"),
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+            except Exception:
+                pass
     except WebSocketDisconnect:
         logger.info("Agent Console disconnected from websocket.")
     except Exception as e:
@@ -483,18 +571,47 @@ async def agent_console_websocket(websocket: WebSocket):
 @router.websocket("/ws/{call_id}")
 async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
     """
-    Bidirectional WebSocket stream for real-time audio/text conversations and interruptions.
+    Bidirectional WebSocket stream for real-time audio/text conversations, WebRTC signaling, and interruptions.
     """
     await websocket.accept()
     call_signaling.register_call_socket(call_id, websocket)
     logger.info(f"WebSocket client connected for call {call_id}")
 
     try:
-        while True:
-            data = await websocket.receive_json()
-            event = data.get("event")
+        # Check if call is already accepted, and send state to customer
+        async with AsyncSessionLocal() as session:
+            stmt = select(Call).where(Call.id == call_id)
+            res = await session.execute(stmt)
+            call = res.scalars().first()
+            if call and call.status == "IN_PROGRESS":
+                greeting = ai_engine.LANGUAGE_GREETINGS.get(call.language or "en", ai_engine.LANGUAGE_GREETINGS["en"])
+                await websocket.send_json({
+                    "event": "CALL_ACCEPTED",
+                    "call_id": call_id,
+                    "call": {
+                        "id": call.id,
+                        "status": "IN_PROGRESS",
+                        "language": call.language,
+                        "greeting_text": greeting,
+                        "transcript": call.transcript
+                    }
+                })
 
-            if event == "user_message":
+        while True:
+            raw_data = await websocket.receive_text()
+            if raw_data == "ping":
+                await websocket.send_text("pong")
+                continue
+            try:
+                data = json.loads(raw_data)
+            except Exception:
+                continue
+
+            event = data.get("event")
+            if event in ("webrtc_offer", "webrtc_answer", "webrtc_ice"):
+                await call_signaling.relay_webrtc_signal(call_id, websocket, data)
+
+            elif event == "user_message":
                 text = data.get("text", "")
                 lang = data.get("language", "auto")
 
@@ -507,8 +624,9 @@ async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
                     )
                     await session.commit()
 
-                await websocket.send_json({
+                resp = {
                     "event": "ai_response",
+                    "speaker": "ai",
                     "reply_text": result["reply_text"],
                     "language": result["language"],
                     "sentiment": result.get("sentiment", "NEUTRAL"),
@@ -517,6 +635,16 @@ async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
                     "is_terminal": result.get("is_terminal", False),
                     "tts": result["tts"],
                     "sources": result["sources"]
+                }
+                await websocket.send_json(resp)
+                await call_signaling.notify_transcript_turn(call_id, {
+                    "speaker": "ai",
+                    "user_query": text,
+                    "reply_text": result["reply_text"],
+                    "language": result["language"],
+                    "sentiment": result.get("sentiment", "NEUTRAL"),
+                    "tts": result["tts"],
+                    "timestamp": datetime.utcnow().isoformat()
                 })
 
             elif event == "interruption":
@@ -525,9 +653,6 @@ async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
                     "event": "playback_halted",
                     "call_id": call_id
                 })
-
-            elif event == "ping":
-                await websocket.send_json({"event": "pong"})
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket client disconnected for call {call_id}")

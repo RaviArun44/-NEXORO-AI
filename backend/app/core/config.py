@@ -2,6 +2,11 @@ from typing import List, Optional, Union
 from pydantic_settings import BaseSettings
 from pydantic import Field, field_validator, ConfigDict
 import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+DEFAULT_DB_FILE = BASE_DIR / "nexora.db"
+DEFAULT_DB_URL = f"sqlite+aiosqlite:///{DEFAULT_DB_FILE.as_posix()}"
 
 class Settings(BaseSettings):
     model_config = ConfigDict(env_file=".env", extra="ignore")
@@ -27,7 +32,7 @@ class Settings(BaseSettings):
     
     # Database (PostgreSQL with fallback to SQLite for local development)
     DATABASE_URL: str = Field(
-        default="sqlite+aiosqlite:///./nexora.db",
+        default=DEFAULT_DB_URL,
         description="Async database connection string"
     )
     
