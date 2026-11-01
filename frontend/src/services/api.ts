@@ -414,14 +414,7 @@ export const api = {
     apiClient.post<any>('/calls/simulate-load', null, { params: { calls_count: callsCount, concurrency } }),
 
   // Real-time Call Signaling & Requests
-  requestCall: (params?: { caller_number?: string; caller_name?: string; language?: string; customer_id?: string }) =>
-    apiClient.post('/live-calls/request-call', null, { params }),
-  acceptCall: (call_id: string, agent_id?: string) =>
-    apiClient.post(`/live-calls/${call_id}/accept`, null, { params: { agent_id } }),
-  rejectCall: (call_id: string, reason?: string) =>
-    apiClient.post(`/live-calls/${call_id}/reject`, null, { params: { reason } }),
-  getPendingCallRequests: () =>
-    apiClient.get<any[]>('/live-calls/pending-requests'),
+
 
   // Calls
   getCalls: (params?: any) => apiClient.get<CallRecord[]>('/calls', { params }),
@@ -457,8 +450,6 @@ export const api = {
     }),
   synthesizeVoice: (text: string, language?: string, callId?: string) =>
     apiClient.post('/live-calls/synthesize-voice', { text, language, call_id: callId }),
-  userLogin: (data: { name: string; email: string; phone: string }) =>
-    apiClient.post('/auth/user-login', data),
 
   // Customers (Admin)
   getCustomers: (params?: any) => apiClient.get<Customer[]>('/customers', { params }),
