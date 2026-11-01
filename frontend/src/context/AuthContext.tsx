@@ -6,6 +6,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
+  userLogin: (data: { name: string; email: string; phone: string }) => Promise<boolean>;
   register: (data: any) => Promise<boolean>;
   logout: () => void;
   pendingHandoffsCount: number;
@@ -52,6 +53,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const userLogin = async (data: { name: string; email: string; phone: string }): Promise<boolean> => {
+    try {
+      const res = await api.userLogin(data);
+      const { access_token, user: loggedUser } = res.data;
+      localStorage.setItem('nexora_token', access_token);
+      setToken(access_token);
+      setUser(loggedUser);
+      return true;
+    } catch (err) {
+      console.error("User login failed:", err);
+      return false;
+    }
+  };
+
   const register = async (data: any): Promise<boolean> => {
     try {
       const res = await api.register(data);
@@ -79,6 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token,
         loading,
         login,
+        userLogin,
         register,
         logout,
         pendingHandoffsCount,

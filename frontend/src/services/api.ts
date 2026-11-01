@@ -4,6 +4,7 @@ export const API_BASE = '/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_BASE,
+  timeout: 8000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -23,6 +24,7 @@ export interface User {
   id: string;
   email: string;
   full_name: string;
+  phone?: string;
   role: string;
   department: string;
   status: string;
@@ -41,6 +43,8 @@ export interface DashboardKPIs {
   csat_score: number;
   handoff_rate_percent: number;
   resolved_by_ai_percent: number;
+  peak_concurrency?: number;
+  queue_size?: number;
   data_source: string;
 }
 
@@ -210,6 +214,7 @@ export interface CompanySettings {
 export const api = {
   // Auth
   login: (data: any) => apiClient.post('/auth/login', data),
+  userLogin: (data: { name: string; email: string; phone: string }) => apiClient.post('/auth/user-login', data),
   register: (data: any) => apiClient.post('/auth/register', data),
   getMe: () => apiClient.get('/auth/me'),
 
@@ -217,9 +222,17 @@ export const api = {
   getKPIs: () => apiClient.get<DashboardKPIs>('/dashboard/kpis'),
   getTelephonyStatus: () => apiClient.get('/dashboard/telephony-status'),
 
-  // Live Calls
+  // Live Calls & Real-time Call Signaling
   startCall: (caller_number?: string, language?: string) =>
     apiClient.post(`/live-calls/start?caller_number=${encodeURIComponent(caller_number || '+1-800-BROWSER')}&language=${language || 'en'}`),
+  requestCall: (params?: { caller_number?: string; caller_name?: string; language?: string; customer_id?: string }) =>
+    apiClient.post('/live-calls/request-call', null, { params }),
+  acceptCall: (call_id: string, agent_id?: string) =>
+    apiClient.post(`/live-calls/${call_id}/accept`, null, { params: { agent_id } }),
+  rejectCall: (call_id: string, reason?: string) =>
+    apiClient.post(`/live-calls/${call_id}/reject`, null, { params: { reason } }),
+  getPendingCallRequests: () =>
+    apiClient.get<any[]>('/live-calls/pending-requests'),
   sendTurn: (call_id: string, user_text: string, language?: string) =>
     apiClient.post(`/live-calls/turn?call_id=${call_id}&user_text=${encodeURIComponent(user_text)}&language=${language || 'auto'}`),
   bargeIn: (call_id: string) => apiClient.post(`/live-calls/barge-in?call_id=${call_id}`),
@@ -229,6 +242,9 @@ export const api = {
   // Calls
   listCalls: (params?: any) => apiClient.get<CallRecord[]>('/calls', { params }),
   getCall: (id: string) => apiClient.get<CallRecord>(`/calls/${id}`),
+  simulateLoad: (num_calls: number = 100, turn_duration_ms: number = 15) =>
+    apiClient.post(`/calls/simulate-load?num_calls=${num_calls}&turn_duration_ms=${turn_duration_ms}`),
+  getQueueMetrics: () => apiClient.get('/calls/queue-metrics'),
 
   // Customers
   listCustomers: (params?: any) => apiClient.get<Customer[]>('/customers', { params }),
@@ -287,6 +303,7 @@ export const api = {
   // Analytics
   getAnalyticsSummary: () => apiClient.get<DashboardKPIs>('/analytics/summary'),
   getLanguagesDistribution: () => apiClient.get('/analytics/languages'),
+  getQueryCategories: () => apiClient.get('/analytics/categories'),
   getCallTrends: () => apiClient.get('/analytics/trends'),
   getEmployeePerformance: () => apiClient.get('/analytics/employees'),
 

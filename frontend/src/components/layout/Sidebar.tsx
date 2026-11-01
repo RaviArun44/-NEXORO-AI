@@ -60,21 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
         </div>
       </div>
 
-      {/* Multilingual Active Indicator */}
-      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
-        <span className="font-medium text-slate-500">Supported:</span>
-        <div className="flex items-center space-x-1 font-mono font-semibold text-blue-700">
-          <span>EN</span>
-          <span>•</span>
-          <span>தமிழ்</span>
-          <span>•</span>
-          <span>हिन्दी</span>
-          <span>•</span>
-          <span>తెలుగు</span>
-          <span>•</span>
-          <span>മല</span>
-        </div>
-      </div>
+
 
       {/* Essential Navigation Links */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
@@ -85,11 +71,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
             <button
               key={item.id}
               onClick={() => setCurrentTab(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                isActive
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${isActive
                   ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`}
+                }`}
             >
               <div className="flex items-center space-x-2.5">
                 <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
@@ -98,11 +83,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
 
               {item.badge && (
                 <span
-                  className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                    isActive
+                  className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${isActive
                       ? 'bg-white/20 text-white'
                       : 'bg-emerald-100 text-emerald-700 animate-pulse'
-                  }`}
+                    }`}
                 >
                   {item.badge}
                 </span>

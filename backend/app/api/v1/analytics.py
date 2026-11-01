@@ -15,6 +15,10 @@ async def get_summary_kpis(db: AsyncSession = Depends(get_db)):
 async def get_languages_chart(db: AsyncSession = Depends(get_db)):
     return await analytics_service.get_language_distribution(db)
 
+@router.get("/categories")
+async def get_customer_query_categories(db: AsyncSession = Depends(get_db)):
+    return await analytics_service.get_query_categories(db)
+
 @router.get("/trends", response_model=List[CallTrendPoint])
 async def get_call_trends(db: AsyncSession = Depends(get_db)):
     return await analytics_service.get_call_trends(db)
@@ -22,4 +26,3 @@ async def get_call_trends(db: AsyncSession = Depends(get_db)):
 @router.get("/employees", response_model=List[EmployeePerformance])
 async def get_employees_performance(db: AsyncSession = Depends(get_db)):
     return await analytics_service.get_employee_performance(db)
-

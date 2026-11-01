@@ -1,39 +1,218 @@
 import logging
-from typing import Optional
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException
+from typing import Optional, Dict, Any, List
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
 
 from app.core.database import get_db, AsyncSessionLocal
 from app.models.call import Call
-from app.models.company import Company
+from app.models.customer import Customer
 from app.services.conversation_orchestrator import orchestrator
 from app.services.speech_service import speech_service
 from app.services.human_handoff_service import human_handoff_service
 from app.services.ai_engine import ai_engine
+from app.services.call_queue_manager import call_queue_manager
+from app.services.call_signaling import call_signaling
 from app.schemas.call import CallResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+@router.post("/request-call")
+async def request_customer_call(
+    caller_number: str = "+1-415-555-0142",
+    caller_name: str = "Valued Customer",
+    language: str = "en",
+    customer_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Called when a Customer clicks 'CALL AI AGENT'.
+    Creates a Call in REQUESTED status and rings all active AI Agent consoles in real-time.
+    """
+    if not call_queue_manager.check_rate_limit(caller_number):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please wait a moment before calling again."
+        )
+
+    # Find or link customer if available
+    if not customer_id:
+        cust_stmt = select(Customer).where(Customer.phone == caller_number)
+        cust_res = await db.execute(cust_stmt)
+        matched_cust = cust_res.scalars().first()
+        if matched_cust:
+            customer_id = matched_cust.id
+            caller_name = matched_cust.name
+
+    call = Call(
+        direction="INBOUND",
+        caller_number=caller_number,
+        receiver_number="+1-800-555-6396",
+        customer_id=customer_id,
+        status="REQUESTED",
+        language=language,
+        detected_languages=[language],
+        start_time=datetime.utcnow(),
+        transcript=[]
+    )
+    db.add(call)
+    await db.commit()
+    await db.refresh(call)
+
+    call_payload = {
+        "id": call.id,
+        "caller_name": caller_name,
+        "caller_number": call.caller_number,
+        "customer_id": customer_id,
+        "language": language,
+        "status": "REQUESTED",
+        "created_at": call.start_time.isoformat()
+    }
+
+    # Broadcast incoming ring event to all AI Agent Consoles
+    await call_signaling.notify_call_requested(call_payload)
+
+    return {
+        "call_id": call.id,
+        "status": "REQUESTED",
+        "caller_name": caller_name,
+        "caller_number": call.caller_number,
+        "language": language,
+        "started_at": call.start_time.isoformat()
+    }
+
+@router.get("/pending-requests")
+async def get_pending_call_requests():
+    """Returns currently ringing / requested calls for the Agent Console."""
+    return call_signaling.get_pending_calls()
+
+@router.post("/{call_id}/accept")
+async def accept_call_request(
+    call_id: str,
+    agent_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    AI Agent accepts the incoming call.
+    Transitions status to IN_PROGRESS, generates greeting, and notifies customer socket.
+    """
+    stmt = select(Call).where(Call.id == call_id)
+    res = await db.execute(stmt)
+    call = res.scalars().first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call session not found")
+
+    call.status = "IN_PROGRESS"
+    call.transferred_to_user_id = agent_id
+
+    language = call.language or "en"
+    greeting = ai_engine.LANGUAGE_GREETINGS.get(language, ai_engine.LANGUAGE_GREETINGS["en"])
+
+    call.transcript = [{
+        "speaker": "ai",
+        "text": greeting,
+        "timestamp": datetime.utcnow().isoformat(),
+        "language": language
+    }]
+    await db.commit()
+    await db.refresh(call)
+
+    # Initialize dialog state
+    session = await orchestrator.get_or_create_session(db, call.id, call.caller_number, call.direction)
+    session.language = language
+    session.turns = call.transcript
+
+    tts = await speech_service.synthesize_speech(greeting, language, call_id=call.id)
+
+    call_info = {
+        "id": call.id,
+        "status": "IN_PROGRESS",
+        "caller_number": call.caller_number,
+        "language": language,
+        "greeting_text": greeting,
+        "tts": tts,
+        "transcript": call.transcript
+    }
+
+    await call_signaling.notify_call_accepted(call_id, call_info)
+
+    return call_info
+
+@router.post("/{call_id}/reject")
+async def reject_call_request(
+    call_id: str,
+    reason: str = "Agent currently unavailable",
+    db: AsyncSession = Depends(get_db)
+):
+    """Rejects incoming call request."""
+    stmt = select(Call).where(Call.id == call_id)
+    res = await db.execute(stmt)
+    call = res.scalars().first()
+    if call:
+        call.status = "REJECTED"
+        call.outcome = "DROPPED"
+        await db.commit()
+
+    await call_signaling.notify_call_rejected(call_id, reason)
+    return {"status": "REJECTED", "call_id": call_id, "reason": reason}
+
+@router.websocket("/ws/agent-calls")
+async def agent_calls_websocket(websocket: WebSocket):
+    """
+    Real-time signaling WebSocket for the AI Agent Console.
+    Streams incoming customer call rings, accept/reject updates, and live metrics.
+    """
+    await websocket.accept()
+    call_signaling.register_agent(websocket)
+    try:
+        # Send initial pending calls immediately
+        await websocket.send_json({
+            "event": "SYNC_PENDING",
+            "calls": call_signaling.get_pending_calls()
+        })
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        call_signaling.unregister_agent(websocket)
+    except Exception:
+        call_signaling.unregister_agent(websocket)
+
 @router.post("/start")
 async def start_live_call(
-    caller_number: str = "+1-800-BROWSER-TEST",
+    caller_number: str = "+91-98401-00199",
     direction: str = "INBOUND",
     language: str = "en",
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Initializes a new live voice call session.
+    Initializes a new live voice call session with concurrency throttle & rate-limiting checks.
     Returns initial greeting tailored to the selected language.
     """
+    # 1. Rate Limiting Check
+    if not call_queue_manager.check_rate_limit(caller_number):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Too many call requests in a short period."
+        )
+
+    # 2. Acquire Concurrency Slot
+    acquired = await call_queue_manager.acquire_concurrency_slot(timeout=4.0)
+    if not acquired:
+        raise HTTPException(
+            status_code=503,
+            detail="All AI voice agent channels are currently saturated. Please try again shortly."
+        )
+
     greeting = ai_engine.LANGUAGE_GREETINGS.get(language, ai_engine.LANGUAGE_GREETINGS["en"])
 
     call = Call(
         direction=direction,
         caller_number=caller_number,
-        receiver_number="+1-800-555-6396",
+        receiver_number="+91-44-6789-0100",
         status="IN_PROGRESS",
         language=language,
         detected_languages=[language],
@@ -54,7 +233,7 @@ async def start_live_call(
     session.language = language
     session.turns = call.transcript
 
-    tts = await speech_service.synthesize_speech(greeting, language)
+    tts = await speech_service.synthesize_speech(greeting, language, call_id=call.id)
 
     return {
         "call_id": call.id,
@@ -75,7 +254,7 @@ async def process_call_turn(
 ):
     """
     Processes a conversational turn for the call.
-    Executes grounded RAG, checks business entities, performs handoff if unknown.
+    Executes business workflows, grounded RAG, and sentiment analysis.
     """
     stmt = select(Call).where(Call.id == call_id)
     res = await db.execute(stmt)
@@ -105,23 +284,70 @@ async def process_call_turn(
         call.outcome = "HANDOFF_TO_HUMAN"
         await db.commit()
 
-    return {
+    response_payload = {
         "call_id": call_id,
         "reply_text": result["reply_text"],
         "language": result["language"],
         "intent": result["intent"],
+        "sentiment": result.get("sentiment", "NEUTRAL"),
         "grounded": result["grounded"],
         "trigger_handoff": result["trigger_handoff"],
+        "is_terminal": result.get("is_terminal", False),
         "handoff_ticket_id": handoff_ticket.id if handoff_ticket else None,
         "sources": result["sources"],
         "tts": result["tts"],
         "transcript": result["turn_history"]
     }
 
+    # Broadcast turn update to Agent Console & monitoring
+    await call_signaling.notify_transcript_turn(call_id, {
+        "speaker": "ai",
+        "user_query": user_text,
+        "reply_text": result["reply_text"],
+        "language": result["language"],
+        "sentiment": result.get("sentiment", "NEUTRAL"),
+        "transcript": result["turn_history"]
+    })
+
+    return response_payload
+
+@router.post("/audio-turn")
+async def process_audio_turn(
+    call_id: str,
+    audio_base64: str = Body(..., embed=True),
+    language: Optional[str] = "auto",
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Direct Speech-to-Text audio turn endpoint.
+    Accepts base64 audio from client, transcribes, processes through workflows/RAG, and synthesizes neural audio.
+    """
+    stmt = select(Call).where(Call.id == call_id)
+    res = await db.execute(stmt)
+    call = res.scalars().first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call session not found")
+
+    # Transcribe audio chunk
+    stt_result = await speech_service.transcribe_audio_chunk(audio_base64, language=language)
+    transcribed_text = stt_result.get("text", "").strip()
+
+    if not transcribed_text:
+        # Default fallback prompt if speech was inaudible
+        transcribed_text = "Hello, can you hear me?"
+
+    # Execute conversational turn
+    return await process_call_turn(
+        call_id=call_id,
+        user_text=transcribed_text,
+        language=stt_result.get("detected_language", language),
+        db=db
+    )
+
 @router.post("/barge-in")
 async def trigger_barge_in(call_id: str):
     """
-    Handles caller interruption: immediately cancels active speech playback.
+    Handles caller interruption: immediately cancels active speech synthesis and playback.
     """
     orchestrator.handle_barge_in(call_id)
     return {"status": "INTERRUPTED", "call_id": call_id}
@@ -133,12 +359,14 @@ async def end_live_call(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Ends active call and stores final transcripts and summaries.
+    Ends active call, releases concurrency slot, and stores final transcripts and summaries.
     """
     call = await orchestrator.finalize_call(db, call_id, outcome=outcome)
+    call_queue_manager.release_concurrency_slot()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
-    return {
+
+    end_data = {
         "call_id": call.id,
         "status": call.status,
         "duration_seconds": call.duration_seconds,
@@ -146,12 +374,16 @@ async def end_live_call(
         "outcome": call.outcome
     }
 
+    await call_signaling.notify_call_ended(call_id, end_data)
+    return end_data
+
 @router.websocket("/ws/{call_id}")
 async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
     """
     Bidirectional WebSocket stream for real-time audio/text conversations and interruptions.
     """
     await websocket.accept()
+    call_signaling.register_call_socket(call_id, websocket)
     logger.info(f"WebSocket client connected for call {call_id}")
 
     try:
@@ -176,8 +408,10 @@ async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
                     "event": "ai_response",
                     "reply_text": result["reply_text"],
                     "language": result["language"],
+                    "sentiment": result.get("sentiment", "NEUTRAL"),
                     "grounded": result["grounded"],
                     "trigger_handoff": result["trigger_handoff"],
+                    "is_terminal": result.get("is_terminal", False),
                     "tts": result["tts"],
                     "sources": result["sources"]
                 })
@@ -200,4 +434,5 @@ async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
             await websocket.close()
         except Exception:
             pass
-
+    finally:
+        call_signaling.unregister_call_socket(call_id, websocket)

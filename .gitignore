@@ -10,6 +10,11 @@ backend/env/
 *.sqlite3
 data_storage/uploads/*
 data_storage/recordings/*
+backend/data_storage/uploads/*
+backend/data_storage/recordings/*
+*.mp3
+*.wav
+*.pdf
 !data_storage/uploads/.gitkeep
 !data_storage/recordings/.gitkeep
 .pytest_cache/
