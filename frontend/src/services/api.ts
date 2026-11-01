@@ -434,6 +434,14 @@ export const api = {
     typeof callerNumber === 'object'
       ? apiClient.post('/live-calls/start', callerNumber)
       : apiClient.post('/live-calls/start', null, { params: { caller_number: callerNumber, language } }),
+  requestCall: (params?: { caller_number?: string; caller_name?: string; language?: string; customer_id?: string }) =>
+    apiClient.post('/live-calls/request-call', null, { params }),
+  acceptCall: (call_id: string, agent_id?: string) =>
+    apiClient.post(`/live-calls/${call_id}/accept`, null, { params: { agent_id } }),
+  rejectCall: (call_id: string, reason?: string) =>
+    apiClient.post(`/live-calls/${call_id}/reject`, null, { params: { reason } }),
+  getPendingCallRequests: () =>
+    apiClient.get<any[]>('/live-calls/pending-requests'),
   endCall: (callId: string, outcome?: string) => apiClient.post('/live-calls/end', null, { params: { call_id: callId, outcome } }),
   bargeIn: (callId: string) => apiClient.post('/live-calls/barge-in', null, { params: { call_id: callId } }),
   sendTurn: (callId: string | null, text: string, language?: string, imageUrls?: string[]) =>
@@ -449,6 +457,8 @@ export const api = {
     }),
   synthesizeVoice: (text: string, language?: string, callId?: string) =>
     apiClient.post('/live-calls/synthesize-voice', { text, language, call_id: callId }),
+  userLogin: (data: { name: string; email: string; phone: string }) =>
+    apiClient.post('/auth/user-login', data),
 
   // Customers (Admin)
   getCustomers: (params?: any) => apiClient.get<Customer[]>('/customers', { params }),

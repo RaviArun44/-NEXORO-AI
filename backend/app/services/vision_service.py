@@ -299,3 +299,4 @@ class VisionService:
         return None
 
 vision_service = VisionService()
+

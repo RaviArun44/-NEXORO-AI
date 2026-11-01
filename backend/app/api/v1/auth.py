@@ -48,6 +48,75 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
             "id": user.id,
             "email": user.email,
             "full_name": user.full_name,
+            "phone": user.phone,
+            "role": user.role,
+            "department": user.department,
+            "status": user.status,
+            "extension": user.extension
+        }
+    }
+
+@router.post("/user-login", response_model=Token)
+async def user_portal_login(req: UserPortalLoginRequest, db: AsyncSession = Depends(get_db)):
+    cleaned_email = req.email.strip().lower()
+    cleaned_phone = req.phone.strip()
+    cleaned_name = req.name.strip()
+
+    stmt = select(User).where(User.email == cleaned_email)
+    res = await db.execute(stmt)
+    user = res.scalars().first()
+
+    comp_stmt = select(Company)
+    comp_res = await db.execute(comp_stmt)
+    company = comp_res.scalars().first()
+
+    if not user:
+        user = User(
+            company_id=company.id if company else None,
+            email=cleaned_email,
+            hashed_password=get_password_hash("User@12345"),
+            full_name=cleaned_name,
+            phone=cleaned_phone,
+            department="Customer Portal",
+            role="USER",
+            status="AVAILABLE"
+        )
+        db.add(user)
+    else:
+        user.full_name = cleaned_name
+        user.phone = cleaned_phone
+
+    # Ensure corresponding Customer CRM record is synced
+    cust_stmt = select(Customer).where((Customer.email == cleaned_email) | (Customer.phone == cleaned_phone))
+    cust_res = await db.execute(cust_stmt)
+    customer = cust_res.scalars().first()
+    if not customer:
+        customer = Customer(
+            company_id=company.id if company else None,
+            name=cleaned_name,
+            email=cleaned_email,
+            phone=cleaned_phone,
+            preferred_language="en",
+            consent_for_outbound=True,
+            dnd_opt_out=False
+        )
+        db.add(customer)
+    else:
+        customer.name = cleaned_name
+        customer.email = cleaned_email
+
+    await db.commit()
+    await db.refresh(user)
+
+    access_token = create_access_token(subject=user.id, role=user.role)
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "phone": user.phone,
             "role": user.role,
             "department": user.department,
             "status": user.status,

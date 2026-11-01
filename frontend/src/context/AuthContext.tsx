@@ -231,6 +231,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCartCount(0);
   };
 
+  const userLogin = async (data: { name: string; email: string; phone: string }): Promise<boolean> => {
+    try {
+      const res = await api.userLogin(data);
+      const { access_token, user: loggedUser } = res.data;
+      localStorage.setItem('nexora_token', access_token);
+      localStorage.setItem('nexora_admin_token', access_token);
+      setAdminToken(access_token);
+      setUser(loggedUser);
+      return true;
+    } catch (err) {
+      console.error("User login failed:", err);
+      return false;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -259,6 +274,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Backwards compatibility aliases
         token: adminToken,
         login: adminLogin,
+        userLogin,
         register: adminRegister,
         logout: adminLogout,
       }}
