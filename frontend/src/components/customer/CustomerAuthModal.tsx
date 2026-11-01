@@ -356,3 +356,4 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     </div>
   );
 };
+

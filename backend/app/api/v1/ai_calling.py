@@ -192,3 +192,4 @@ async def get_ai_calling_stats(db: AsyncSession = Depends(get_db)):
         avg_duration_seconds=round(avg_dur, 1),
         language_distribution=lang_dist
     )
+

@@ -484,3 +484,4 @@ export const CustomerStoreView: React.FC = () => {
     </div>
   );
 };
+

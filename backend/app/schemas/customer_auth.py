@@ -49,3 +49,4 @@ class CustomerUpdateProfileRequest(BaseModel):
     pincode: Optional[str] = None
     landmark: Optional[str] = None
     preferred_language: Optional[str] = None
+

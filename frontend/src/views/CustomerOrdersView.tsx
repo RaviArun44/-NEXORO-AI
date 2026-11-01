@@ -184,3 +184,4 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({ onBackTo
     </div>
   );
 };
+

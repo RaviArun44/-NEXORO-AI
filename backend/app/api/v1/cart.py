@@ -239,3 +239,4 @@ async def clear_cart(
     recalculate_cart(cart)
     await db.commit()
     return {"status": "CLEARED", "message": "Cart has been emptied"}
+

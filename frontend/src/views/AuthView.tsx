@@ -60,13 +60,16 @@ export const AuthView: React.FC = () => {
         <div className="flex justify-center mb-3">
           <NexoraAvatar size="lg" />
         </div>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-          NEXORA AI
+        <div className="inline-block bg-blue-600 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-0.5 rounded-full mb-1 shadow-xs">
+          Admin Portal
+        </div>
+        <h2 className="text-2xl font-black tracking-tight text-slate-900">
+          Executive Admin Login
         </h2>
         <p className="text-xs text-slate-500 mt-1">
-          Intelligent Multilingual Virtual Receptionist & Communication Suite
+          Full management access for orders, customers, inventory, and AI calling operations
         </p>
-        <div className="inline-flex items-center space-x-1.5 mt-2.5 bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
+        <div className="inline-flex items-center space-x-1.5 mt-2 bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
           <span>Engineered & Built by</span>
           <span className="font-bold">KAIRA Technologies</span>
         </div>

@@ -86,3 +86,4 @@ async def get_order_payments(
     res = await db.execute(stmt)
     payments = res.scalars().all()
     return payments
+

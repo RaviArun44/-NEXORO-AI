@@ -43,6 +43,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [customerToken, setCustomerToken] = useState<string | null>(localStorage.getItem('nexora_customer_token'));
   
   const [portalMode, setPortalModeState] = useState<'admin' | 'customer'>(() => {
+    // 1. Check URL parameters and hash first
+    const urlParams = new URLSearchParams(window.location.search);
+    const param = urlParams.get('portal');
+    if (param === 'admin' || window.location.hash.toLowerCase().includes('admin')) {
+      return 'admin';
+    }
+    if (param === 'customer' || window.location.hash.toLowerCase().includes('customer')) {
+      return 'customer';
+    }
     return (localStorage.getItem('nexora_portal_mode') as 'admin' | 'customer') || 'customer';
   });
   
@@ -52,8 +61,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const setPortalMode = (mode: 'admin' | 'customer') => {
     localStorage.setItem('nexora_portal_mode', mode);
+    window.location.hash = mode;
     setPortalModeState(mode);
   };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.toLowerCase();
+      if (hash.includes('admin')) {
+        setPortalModeState('admin');
+      } else if (hash.includes('customer')) {
+        setPortalModeState('customer');
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const refreshCustomer = async () => {
     const cToken = localStorage.getItem('nexora_customer_token');

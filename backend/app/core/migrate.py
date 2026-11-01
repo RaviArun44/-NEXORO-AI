@@ -84,3 +84,4 @@ def run_sqlite_migrations(db_path: str = "nexora.db"):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     run_sqlite_migrations()
+

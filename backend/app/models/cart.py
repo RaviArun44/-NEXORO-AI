@@ -19,3 +19,4 @@ class Cart(Base):
     final_amount = Column(Numeric(10, 2), default=0.0)
     
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+

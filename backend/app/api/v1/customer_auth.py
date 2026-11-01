@@ -171,3 +171,4 @@ async def update_my_profile(
     await db.commit()
     await db.refresh(customer)
     return serialize_customer(customer)
+
