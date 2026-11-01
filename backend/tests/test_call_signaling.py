@@ -27,3 +27,4 @@ async def test_call_signaling_lifecycle():
 
     await call_signaling.notify_call_rejected("call-test-sig-456", "Agent unavailable")
     assert not any(c["id"] == "call-test-sig-456" for c in call_signaling.get_pending_calls())
+
