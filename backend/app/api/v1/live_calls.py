@@ -203,23 +203,19 @@ async def accept_call_request(
 
     call_info = {
         "id": call.id,
+        "call_id": call.id,
         "status": "IN_PROGRESS",
         "caller_number": call.caller_number,
         "language": language,
         "greeting": greeting,
+        "greeting_text": greeting,
         "tts": tts,
         "transcript": call.transcript
     }
 
     await call_signaling.notify_call_accepted(call_id, call_info)
 
-    return {
-        "status": "ACCEPTED",
-        "call_id": call.id,
-        "greeting_text": greeting,
-        "tts": tts,
-        "language": language
-    }
+    return call_info
 
 @router.post("/{call_id}/reject")
 async def reject_call_request(
@@ -457,6 +453,7 @@ async def end_live_call(
     await call_signaling.notify_call_ended(call_id, end_data)
     return end_data
 
+@router.websocket("/ws/agent-calls")
 @router.websocket("/ws/agent-console")
 async def agent_console_websocket(websocket: WebSocket):
     """
@@ -467,11 +464,15 @@ async def agent_console_websocket(websocket: WebSocket):
     call_signaling.register_agent(websocket)
     logger.info("Agent Console connected to live dispatch websocket.")
     try:
+        # Send initial pending calls immediately
+        await websocket.send_json({
+            "event": "SYNC_PENDING",
+            "calls": call_signaling.get_pending_calls()
+        })
         while True:
-            data = await websocket.receive_json()
-            event = data.get("event")
-            if event == "ping":
-                await websocket.send_json({"event": "pong"})
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
     except WebSocketDisconnect:
         logger.info("Agent Console disconnected from websocket.")
     except Exception as e:

@@ -4,6 +4,7 @@ export const API_BASE = '/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_BASE,
+  timeout: 8000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -413,6 +414,7 @@ export const api = {
   // Calls
   getCalls: (params?: any) => apiClient.get<CallRecord[]>('/calls', { params }),
   listCalls: (params?: any) => apiClient.get<CallRecord[]>('/calls', { params }),
+  getCall: (id: string) => apiClient.get<CallRecord>(`/calls/${id}`),
   getCallById: (id: string) => apiClient.get<CallRecord>(`/calls/${id}`),
 
   // Live Calls Interactive Studio

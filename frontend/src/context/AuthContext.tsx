@@ -221,6 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await api.userLogin(data);
       const { access_token, user: loggedUser } = res.data;
       localStorage.setItem('nexora_token', access_token);
+      localStorage.setItem('nexora_admin_token', access_token);
       setAdminToken(access_token);
       setUser(loggedUser);
       return true;
