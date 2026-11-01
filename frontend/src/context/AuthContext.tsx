@@ -107,12 +107,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const savedCustomerToken = localStorage.getItem('nexora_customer_token');
       if (savedCustomerToken) {
         try {
-          const res = await api.getCustomerProfile();
+          const res = await api.customerGetMe();
           setCustomer(res.data);
           setCustomerToken(savedCustomerToken);
 
           const cartRes = await api.getCart();
-          setCartCount(cartRes.data?.total_items || 0);
+          setCartCount(cartRes.data?.items_count || 0);
         } catch (err) {
           console.warn("Customer session invalid:", err);
           localStorage.removeItem('nexora_customer_token');
@@ -207,7 +207,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       try {
         const cartRes = await api.getCart();
-        setCartCount(cartRes.data?.total_items || 0);
+        setCartCount(cartRes.data?.items_count || 0);
       } catch (e) {
         setCartCount(0);
       }
@@ -266,10 +266,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshCustomer = async () => {
     if (!customerToken) return;
     try {
-      const res = await api.getCustomerProfile();
+      const res = await api.customerGetMe();
       setCustomer(res.data);
       const cartRes = await api.getCart();
-      setCartCount(cartRes.data?.total_items || 0);
+      setCartCount(cartRes.data?.items_count || 0);
     } catch (err) {
       console.warn("Failed to refresh customer profile:", err);
     }
