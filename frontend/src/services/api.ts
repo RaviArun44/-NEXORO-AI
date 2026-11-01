@@ -326,9 +326,23 @@ export interface CompanySettings {
 
 // API Methods
 export const api = {
-  // Admin Auth
-  login: (data: { email: string; password: string }) => apiClient.post('/auth/login', data),
-  register: (data: any) => apiClient.post('/auth/register', data),
+  // Role & User Auth
+  login: (data: { username_or_email?: string; email?: string; username?: string; password: string; role?: string; remember_me?: boolean }) =>
+    apiClient.post('/auth/login', data),
+  register: (data: {
+    full_name: string;
+    username?: string;
+    email: string;
+    phone?: string;
+    password: string;
+    confirm_password?: string;
+    role?: string;
+    admin_key?: string;
+    department?: string;
+  }) => apiClient.post('/auth/register', data),
+  forgotPassword: (data: { email_or_username: string }) => apiClient.post('/auth/forgot-password', data),
+  resetPassword: (data: { email_or_username: string; new_password: string; confirm_new_password: string; reset_code?: string }) =>
+    apiClient.post('/auth/reset-password', data),
   getMe: () => apiClient.get<User>('/auth/me'),
 
   // Customer Auth

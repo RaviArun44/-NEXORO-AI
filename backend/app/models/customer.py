@@ -11,7 +11,7 @@ class Customer(Base):
     
     # Unique sequential Customer ID (e.g., CUST-2026-00001)
     customer_code = Column(String(50), unique=True, index=True, nullable=False)
-    
+    username = Column(String(100), unique=True, index=True, nullable=True)
     name = Column(String(255), default="Guest Customer", nullable=False)
     phone = Column(String(50), index=True, nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=True)

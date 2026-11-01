@@ -5,8 +5,8 @@ interface AuthContextType {
   // Admin Session
   user: User | null;
   adminToken: string | null;
-  adminLogin: (email: string, password: string) => Promise<boolean>;
-  adminRegister: (data: any) => Promise<boolean>;
+  adminLogin: (usernameOrEmail: string, password: string, role?: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
+  adminRegister: (data: any) => Promise<{ success: boolean; error?: string }>;
   adminLogout: () => void;
 
   // Customer Session
@@ -26,11 +26,13 @@ interface AuthContextType {
   pendingHandoffsCount: number;
   setPendingHandoffsCount: React.Dispatch<React.SetStateAction<number>>;
 
-  // Backward compatible login/logout for existing views
+  // Enhanced Role-Based Authentication
   token: string | null;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (usernameOrEmail: string, password: string, role?: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
   userLogin: (data: { name: string; email: string; phone: string }) => Promise<boolean>;
-  register: (data: any) => Promise<boolean>;
+  register: (data: any) => Promise<{ success: boolean; error?: string }>;
+  forgotPassword: (emailOrUsername: string) => Promise<{ success: boolean; message?: string; resetCode?: string; error?: string }>;
+  resetPassword: (data: { email_or_username: string; new_password: string; confirm_new_password: string; reset_code?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
   logout: () => void;
 }
 
@@ -135,34 +137,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initSessions();
   }, []);
 
-  // Admin Auth Handlers
-  const adminLogin = async (email: string, password: string): Promise<boolean> => {
+  // Role & Admin Auth Handlers
+  const adminLogin = async (
+    usernameOrEmail: string,
+    password: string,
+    role?: string,
+    rememberMe?: boolean
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const res = await api.login({ email, password });
+      const res = await api.login({
+        username_or_email: usernameOrEmail,
+        password,
+        role,
+        remember_me: rememberMe
+      });
       const { access_token, user: loggedUser } = res.data;
       localStorage.setItem('nexora_token', access_token);
+      localStorage.setItem('nexora_admin_token', access_token);
       setAdminToken(access_token);
       setUser(loggedUser);
       setPortalMode('admin');
-      return true;
-    } catch (err) {
-      console.error("Admin login failed:", err);
-      return false;
+      return { success: true };
+    } catch (err: any) {
+      const detail = err.response?.data?.detail || "Invalid credentials. Please verify your username/email and password.";
+      return { success: false, error: detail };
     }
   };
 
-  const adminRegister = async (data: any): Promise<boolean> => {
+  const adminRegister = async (data: any): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await api.register(data);
       const { access_token, user: registeredUser } = res.data;
       localStorage.setItem('nexora_token', access_token);
+      localStorage.setItem('nexora_admin_token', access_token);
       setAdminToken(access_token);
       setUser(registeredUser);
       setPortalMode('admin');
-      return true;
-    } catch (err) {
-      console.error("Admin registration failed:", err);
-      return false;
+      return { success: true };
+    } catch (err: any) {
+      const detail = err.response?.data?.detail || "Registration failed. Please check your information.";
+      return { success: false, error: detail };
+    }
+  };
+
+  const forgotPassword = async (emailOrUsername: string) => {
+    try {
+      const res = await api.forgotPassword({ email_or_username: emailOrUsername });
+      return { success: true, message: res.data.message, resetCode: res.data.reset_code };
+    } catch (err: any) {
+      return { success: false, error: err.response?.data?.detail || "Failed to initiate password reset." };
+    }
+  };
+
+  const resetPassword = async (data: any) => {
+    try {
+      const res = await api.resetPassword(data);
+      return { success: true, message: res.data.message };
+    } catch (err: any) {
+      return { success: false, error: err.response?.data?.detail || "Failed to reset password." };
     }
   };
 
@@ -260,6 +292,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login: adminLogin,
         userLogin,
         register: adminRegister,
+        forgotPassword,
+        resetPassword,
         logout: adminLogout,
       }}
     >

@@ -6,7 +6,11 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 MIGRATIONS = {
+    "users": [
+        ("username", "TEXT"),
+    ],
     "customers": [
+        ("username", "TEXT"),
         ("customer_code", "TEXT"),
         ("hashed_password", "TEXT"),
         ("address_line1", "TEXT"),
