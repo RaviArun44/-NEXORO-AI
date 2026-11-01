@@ -14,6 +14,8 @@ interface AuthContextType {
   customerToken: string | null;
   customerLogin: (identifier: string, password: string) => Promise<boolean>;
   customerRegister: (data: any) => Promise<boolean>;
+  customerPortalRegister: (data: { name: string; email: string; phone: string; password: string; preferred_language?: string }) => Promise<{ success: boolean; message?: string }>;
+  customerPortalLogin: (identifier: string, password: string) => Promise<{ success: boolean; message?: string }>;
   customerLogout: () => void;
   refreshCustomer: () => Promise<void>;
 
@@ -224,6 +226,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const customerPortalRegister = async (data: {
+    name: string;
+    email: string;
+    phone: string;
+    password: string;
+    preferred_language?: string;
+  }): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const res = await api.customerPortalRegister(data);
+      const { access_token, user: loggedUser } = res.data;
+      localStorage.setItem('nexora_token', access_token);
+      localStorage.setItem('nexora_customer_token', access_token);
+      setAdminToken(access_token);
+      setCustomerToken(access_token);
+      setUser(loggedUser);
+      setPortalMode('admin');
+      return { success: true };
+    } catch (err: any) {
+      console.error("Customer registration failed:", err);
+      const msg = err.response?.data?.detail || "Registration failed. Please verify your details.";
+      return { success: false, message: typeof msg === 'string' ? msg : JSON.stringify(msg) };
+    }
+  };
+
+  const customerPortalLogin = async (identifier: string, password: string): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const res = await api.customerPortalLogin({ identifier, password });
+      const { access_token, user: loggedUser } = res.data;
+      localStorage.setItem('nexora_token', access_token);
+      localStorage.setItem('nexora_customer_token', access_token);
+      setAdminToken(access_token);
+      setCustomerToken(access_token);
+      setUser(loggedUser);
+      setPortalMode('admin');
+      return { success: true };
+    } catch (err: any) {
+      console.error("Customer login failed:", err);
+      const msg = err.response?.data?.detail || "Invalid mobile number/email or password.";
+      return { success: false, message: typeof msg === 'string' ? msg : JSON.stringify(msg) };
+    }
+  };
+
   const customerLogout = () => {
     localStorage.removeItem('nexora_customer_token');
     setCustomerToken(null);
@@ -245,6 +289,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         customerToken,
         customerLogin,
         customerRegister,
+        customerPortalRegister,
+        customerPortalLogin,
         customerLogout,
         refreshCustomer,
 

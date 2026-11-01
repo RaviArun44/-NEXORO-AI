@@ -329,6 +329,10 @@ export const api = {
   // Admin & Agent Auth
   login: (data: { email: string; password: string }) => apiClient.post('/auth/login', data),
   userLogin: (data: { name: string; email: string; phone: string }) => apiClient.post('/auth/user-login', data),
+  customerPortalRegister: (data: { name: string; email: string; phone: string; password: string; preferred_language?: string }) =>
+    apiClient.post<{ access_token: string; token_type: string; user: User }>('/auth/customer-register', data),
+  customerPortalLogin: (data: { identifier: string; password: string }) =>
+    apiClient.post<{ access_token: string; token_type: string; user: User }>('/auth/customer-login', data),
   register: (data: any) => apiClient.post('/auth/register', data),
   getMe: () => apiClient.get<User>('/auth/me'),
 
