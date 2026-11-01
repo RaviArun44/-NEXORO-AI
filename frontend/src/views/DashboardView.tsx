@@ -14,15 +14,23 @@ import {
   Server,
   Layers,
   Radio,
-  Play
+  Play,
+  Users,
+  ShoppingCart,
+  CreditCard,
+  PhoneCall,
+  IndianRupee,
+  ShoppingBag
 } from 'lucide-react';
 import { api, DashboardKPIs, CallRecord } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface DashboardViewProps {
   onNavigate: (tab: string) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
+  const { setPortalMode } = useAuth();
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [recentCalls, setRecentCalls] = useState<CallRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -32,8 +40,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const fetchData = async () => {
     try {
       const [kpiRes, callsRes] = await Promise.all([
-        api.getKPIs(),
-        api.listCalls({ limit: 5 })
+        api.getDashboardKPIs(),
+        api.getCalls({ limit: 5 })
       ]);
       setKpis(kpiRes.data);
       setRecentCalls(callsRes.data);
@@ -95,6 +103,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         </div>
         <div className="flex items-center space-x-3 shrink-0 flex-wrap gap-2">
           <button
+            onClick={() => setPortalMode('customer')}
+            className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm shadow-sm transition-all cursor-pointer flex items-center space-x-2"
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span>Customer Store (Live Preview)</span>
+          </button>
+          <button
             onClick={() => onNavigate('live-calls')}
             className="bg-white text-blue-700 hover:bg-blue-50 px-4 py-2.5 rounded-xl font-semibold text-sm shadow-sm transition-all cursor-pointer flex items-center space-x-2"
           >
@@ -128,7 +143,134 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* Primary KPI Grid (6 Metric Cards) */}
+      {/* E-Commerce Operations & Unified Marketplace KPIs */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+              E-Commerce & Autonomous Calling Operations
+            </h2>
+          </div>
+          <span className="text-xs text-slate-500 font-medium">Real-time Multi-Marketplace Sync (Amazon • Flipkart • Meesho)</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {/* Total Customers */}
+          <div 
+            onClick={() => onNavigate('customers')}
+            className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-blue-400 hover:shadow-sm transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-blue-600 transition-colors">Registered Customers</span>
+              <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                <Users className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1.5">
+              <span className="text-2xl font-bold text-slate-800">{kpis?.total_customers ?? 0}</span>
+              <span className="text-[10px] font-medium text-emerald-600">Active CRM</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Unique Customer IDs</p>
+          </div>
+
+          {/* Total Orders */}
+          <div 
+            onClick={() => onNavigate('orders')}
+            className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-indigo-400 hover:shadow-sm transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-indigo-600 transition-colors">Total Orders</span>
+              <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                <ShoppingCart className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1.5">
+              <span className="text-2xl font-bold text-slate-800">{kpis?.total_orders ?? 0}</span>
+              <span className="text-[10px] font-medium text-indigo-600">
+                {kpis?.today_orders ?? 0} Today
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              Cancelled: {kpis?.cancelled_orders ?? 0}
+            </p>
+          </div>
+
+          {/* Total Revenue */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider">Total Revenue</span>
+              <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                <IndianRupee className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1">
+              <span className="text-xs font-bold text-emerald-600">₹</span>
+              <span className="text-2xl font-bold text-slate-800">
+                {(kpis?.total_revenue ?? 0).toLocaleString('en-IN')}
+              </span>
+            </div>
+            <p className="text-[10px] text-emerald-600 mt-1">Direct Gateway Settled</p>
+          </div>
+
+          {/* Successful Payments */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider">Paid Orders</span>
+              <div className="p-1.5 bg-sky-50 text-sky-600 rounded-lg">
+                <CreditCard className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1.5">
+              <span className="text-2xl font-bold text-slate-800">{kpis?.successful_payments ?? 0}</span>
+              <span className="text-[10px] font-medium text-slate-500">
+                / {kpis?.pending_payments ?? 0} Pending
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">UPI, Cards, COD</p>
+          </div>
+
+          {/* AI Voice Calls Completed */}
+          <div 
+            onClick={() => onNavigate('ai-calling')}
+            className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-emerald-400 hover:shadow-sm transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-emerald-600 transition-colors">AI Confirmed Calls</span>
+              <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <PhoneCall className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1.5">
+              <span className="text-2xl font-bold text-slate-800">{kpis?.ai_calls_completed ?? 0}</span>
+              <span className="text-[10px] font-medium text-emerald-600">100% Neural</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Multi-Turn Voice Engine</p>
+          </div>
+
+          {/* AI Calls Pending / Retrying */}
+          <div 
+            onClick={() => onNavigate('ai-calling')}
+            className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-amber-400 hover:shadow-sm transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-amber-600 transition-colors">Calls Queue & Retries</span>
+              <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                <Clock className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1.5">
+              <span className="text-2xl font-bold text-slate-800">{kpis?.ai_calls_pending ?? 0}</span>
+              <span className="text-[10px] font-medium text-rose-500">
+                {kpis?.ai_calls_failed ?? 0} Failed
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Auto-Retry Scheduling</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Primary KPI Grid (6 Voice Telemetry Metric Cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {/* Total Calls */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">

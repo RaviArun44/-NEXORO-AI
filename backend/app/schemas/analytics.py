@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
 class DashboardKPIs(BaseModel):
+    # Call Metrics
     total_calls: int
     incoming_calls: int
     outgoing_calls: int
@@ -16,6 +17,18 @@ class DashboardKPIs(BaseModel):
     peak_concurrency: Optional[int] = 0
     queue_size: Optional[int] = 0
     data_source: Optional[str] = "Khaira Production Database"
+    
+    # E-Commerce & AI Voice Calling Organization Metrics
+    total_customers: int = 0
+    total_orders: int = 0
+    today_orders: int = 0
+    successful_payments: int = 0
+    pending_payments: int = 0
+    cancelled_orders: int = 0
+    total_revenue: float = 0.0
+    ai_calls_completed: int = 0
+    ai_calls_pending: int = 0
+    ai_calls_failed: int = 0
 
 class LanguageDistribution(BaseModel):
     language: str

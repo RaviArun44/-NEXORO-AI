@@ -5,6 +5,7 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import oauth2_scheme, decode_access_token
 from app.models.user import User
+from app.models.customer import Customer
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -12,11 +13,21 @@ async def get_current_user(
 ) -> User:
     payload = decode_access_token(token)
     user_id = payload.get("sub")
+    role = payload.get("role")
+    
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials"
         )
+    
+    # If customer token is passed to admin route, block it
+    if role == "CUSTOMER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Customer token cannot access administrative resources."
+        )
+
     stmt = select(User).where(User.id == user_id)
     result = await db.execute(stmt)
     user = result.scalars().first()
@@ -42,3 +53,31 @@ async def get_current_admin(
         )
     return current_user
 
+async def get_current_customer(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> Customer:
+    payload = decode_access_token(token)
+    customer_id = payload.get("sub")
+    role = payload.get("role")
+
+    if not customer_id or role != "CUSTOMER":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Valid customer credentials required."
+        )
+
+    stmt = select(Customer).where(Customer.id == customer_id)
+    result = await db.execute(stmt)
+    customer = result.scalars().first()
+    if not customer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer account not found"
+        )
+    if not customer.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Customer account is inactive."
+        )
+    return customer

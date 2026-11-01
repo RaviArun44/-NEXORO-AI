@@ -2,9 +2,11 @@ from app.core.database import Base
 from app.models.company import Company
 from app.models.user import User
 from app.models.customer import Customer
-from app.models.knowledge import KnowledgeDoc, KnowledgeChunk
+from app.models.category import Category
 from app.models.product import Product
+from app.models.cart import Cart
 from app.models.order import Order
+from app.models.payment import Payment
 from app.models.appointment import Appointment
 from app.models.complaint import Complaint
 from app.models.call import Call
@@ -17,10 +19,11 @@ __all__ = [
     "Company",
     "User",
     "Customer",
-    "KnowledgeDoc",
-    "KnowledgeChunk",
+    "Category",
     "Product",
+    "Cart",
     "Order",
+    "Payment",
     "Appointment",
     "Complaint",
     "Call",
@@ -29,4 +32,3 @@ __all__ = [
     "CampaignLead",
     "AuditLog"
 ]
-

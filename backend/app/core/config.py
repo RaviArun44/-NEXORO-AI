@@ -66,8 +66,8 @@ class Settings(BaseSettings):
     
     # Voice & Speech Settings
     DEFAULT_LANGUAGE: str = "en"
-    SUPPORTED_LANGUAGES: List[str] = ["en", "ta", "hi", "te", "ml"]
-    EXTENSIBLE_LANGUAGES: List[str] = ["kn", "mr", "bn", "gu", "es", "fr", "ar"]
+    SUPPORTED_LANGUAGES: List[str] = ["en", "ta", "te", "ml", "kn", "hi"]
+    EXTENSIBLE_LANGUAGES: List[str] = ["mr", "bn", "gu", "es", "fr", "ar"]
     TTS_PROVIDER: str = Field(default="edge_tts", description="edge_tts, browser_native, or cloud_api")
     STT_PROVIDER: str = Field(default="faster_whisper", description="faster_whisper, browser_native, or cloud_api")
     

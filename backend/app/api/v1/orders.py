@@ -1,22 +1,155 @@
 import random
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import List, Optional, Dict, Any
+from decimal import Decimal
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func, or_
 from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.models.order import Order
 from app.models.customer import Customer
-from app.schemas.order import OrderCreate, OrderUpdate, OrderResponse
+from app.models.cart import Cart
+from app.schemas.order import (
+    OrderCreate,
+    OrderUpdate,
+    OrderResponse,
+    CheckoutRequest
+)
+from app.api.deps import get_current_customer, get_current_user
+from app.services.ai_calling_agent import ai_calling_agent
 
 router = APIRouter()
+
+async def generate_unique_order_number(db: AsyncSession) -> str:
+    """Generates sequential unique Order ID: ORD-2026-00001, ORD-2026-00002..."""
+    count_stmt = select(func.count(Order.id))
+    res = await db.execute(count_stmt)
+    total_count = res.scalar() or 0
+    candidate = f"ORD-2026-{total_count + 1:05d}"
+    
+    while True:
+        exists_stmt = select(Order).where(Order.order_number == candidate)
+        exists_res = await db.execute(exists_stmt)
+        if not exists_res.scalars().first():
+            return candidate
+        total_count += 1
+        candidate = f"ORD-2026-{total_count + 1:05d}"
+
+# -------------------------------------------------------------------------
+# Customer Checkout & My Orders Endpoints
+# -------------------------------------------------------------------------
+
+@router.post("/checkout", response_model=Dict[str, Any])
+async def checkout_cart(
+    req: CheckoutRequest,
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Transforms customer's cart into an official order.
+    Generates sequential Order ID (ORD-2026-00001).
+    If COD: marks confirmed and immediately dispatches the AI Outbound Confirmation Voice Call!
+    If Online: generates order ready for payment verification.
+    """
+    # 1. Fetch Cart
+    c_stmt = select(Cart).where(Cart.customer_id == customer.id)
+    c_res = await db.execute(c_stmt)
+    cart = c_res.scalars().first()
+    
+    if not cart or not cart.items:
+        raise HTTPException(status_code=400, detail="Cannot checkout an empty shopping cart")
+
+    order_number = await generate_unique_order_number(db)
+    is_cod = req.payment_method.upper() in ["CASH_ON_DELIVERY", "COD"]
+    
+    full_address = f"{req.shipping_address}, {req.city}, {req.state} - {req.pincode}"
+
+    order = Order(
+        customer_id=customer.id,
+        order_number=order_number,
+        customer_name=customer.name,
+        customer_phone=customer.phone,
+        customer_email=customer.email,
+        items=list(cart.items),
+        subtotal=cart.subtotal,
+        delivery_fee=cart.delivery_charge,
+        discount_amount=cart.discount,
+        coupon_code=cart.coupon_code,
+        total_amount=cart.final_amount,
+        currency="INR",
+        status="ORDER_CONFIRMED" if is_cod else "ORDER_PLACED",
+        payment_status="PENDING",
+        payment_method=req.payment_method,
+        tracking_number=f"TRK-{random.randint(10000000, 99999999)}",
+        courier_name="BlueDart Express",
+        estimated_delivery=datetime.utcnow() + timedelta(days=3),
+        shipping_address=full_address,
+        delivery_notes=req.delivery_notes,
+        preferred_language=req.preferred_language or customer.preferred_language or "en",
+        ai_call_status="PENDING"
+    )
+    db.add(order)
+
+    # Empty cart after checkout
+    cart.items = []
+    cart.coupon_code = None
+    cart.subtotal = Decimal("0.00")
+    cart.delivery_charge = Decimal("0.00")
+    cart.discount = Decimal("0.00")
+    cart.final_amount = Decimal("0.00")
+
+    await db.commit()
+    await db.refresh(order)
+
+    ai_call_result = None
+    # 2. If Cash on Delivery, trigger AI Outbound Confirmation Call immediately!
+    if is_cod:
+        ai_call_result = await ai_calling_agent.initiate_order_confirmation_call(
+            order=order,
+            customer=customer,
+            db=db,
+            simulate_outcome="CONFIRMED"
+        )
+
+    return {
+        "success": True,
+        "message": f"Order {order_number} created successfully.",
+        "order": {
+            "id": order.id,
+            "order_number": order.order_number,
+            "customer_code": customer.customer_code,
+            "total_amount": float(order.total_amount),
+            "payment_method": order.payment_method,
+            "payment_status": order.payment_status,
+            "status": order.status,
+            "shipping_address": order.shipping_address,
+            "estimated_delivery": order.estimated_delivery.isoformat() if order.estimated_delivery else None,
+            "ai_call_status": order.ai_call_status,
+            "preferred_language": order.preferred_language
+        },
+        "ai_call": ai_call_result
+    }
+
+@router.get("/my-orders", response_model=List[OrderResponse])
+async def get_my_orders(
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Order).where(Order.customer_id == customer.id).order_by(desc(Order.created_at))
+    res = await db.execute(stmt)
+    return res.scalars().all()
+
+# -------------------------------------------------------------------------
+# Admin Order Operations & AI Outbound Calling Trigger
+# -------------------------------------------------------------------------
 
 @router.get("", response_model=List[OrderResponse])
 async def list_orders(
     status: Optional[str] = None,
     payment_status: Optional[str] = None,
     customer_id: Optional[str] = None,
+    search: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db)
@@ -28,52 +161,60 @@ async def list_orders(
         query = query.where(Order.payment_status == payment_status)
     if customer_id:
         query = query.where(Order.customer_id == customer_id)
+    if search:
+        query = query.where(
+            or_(
+                Order.order_number.contains(search),
+                Order.customer_name.contains(search),
+                Order.customer_phone.contains(search)
+            )
+        )
     query = query.offset(offset).limit(limit)
     res = await db.execute(query)
     return res.scalars().all()
 
-@router.post("", response_model=OrderResponse)
-async def create_order(req: OrderCreate, db: AsyncSession = Depends(get_db)):
-    order_num = f"ORD-{random.randint(100000, 999999)}"
-    
-    order = Order(
-        customer_id=req.customer_id,
-        order_number=order_num,
-        items=[item.model_dump() for item in req.items],
-        total_amount=req.total_amount,
-        currency=req.currency,
-        status="CONFIRMED",
-        payment_status=req.payment_status,
-        payment_method=req.payment_method,
-        tracking_number=f"TRK-{random.randint(10000000, 99999999)}",
-        courier_name="FedEx Express",
-        estimated_delivery=datetime.utcnow() + timedelta(days=3),
-        shipping_address=req.shipping_address,
-        delivery_notes=req.delivery_notes
-    )
-    db.add(order)
-    await db.commit()
-    await db.refresh(order)
-    return order
-
 @router.get("/{order_id}", response_model=OrderResponse)
 async def get_order(order_id: str, db: AsyncSession = Depends(get_db)):
-    stmt = select(Order).where(Order.id == order_id)
+    stmt = select(Order).where(or_(Order.id == order_id, Order.order_number == order_id))
     res = await db.execute(stmt)
     order = res.scalars().first()
-    if not order:
-        # Also try lookup by order_number
-        stmt2 = select(Order).where(Order.order_number == order_id)
-        res2 = await db.execute(stmt2)
-        order = res2.scalars().first()
-
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
 
+@router.post("/{order_id}/trigger-ai-call")
+async def trigger_ai_order_call(
+    order_id: str,
+    outcome: str = Query("CONFIRMED"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Manually triggers or retries an automated multilingual AI Voice Calling
+    session for a customer order from the Admin Dashboard or Softphone Studio.
+    """
+    stmt = select(Order).where(or_(Order.id == order_id, Order.order_number == order_id))
+    res = await db.execute(stmt)
+    order = res.scalars().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    c_stmt = select(Customer).where(Customer.id == order.customer_id)
+    c_res = await db.execute(c_stmt)
+    customer = c_res.scalars().first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer associated with order not found")
+
+    call_result = await ai_calling_agent.initiate_order_confirmation_call(
+        order=order,
+        customer=customer,
+        db=db,
+        simulate_outcome=outcome
+    )
+    return call_result
+
 @router.put("/{order_id}", response_model=OrderResponse)
 async def update_order(order_id: str, req: OrderUpdate, db: AsyncSession = Depends(get_db)):
-    stmt = select(Order).where(Order.id == order_id)
+    stmt = select(Order).where(or_(Order.id == order_id, Order.order_number == order_id))
     res = await db.execute(stmt)
     order = res.scalars().first()
     if not order:
@@ -86,4 +227,3 @@ async def update_order(order_id: str, req: OrderUpdate, db: AsyncSession = Depen
     await db.commit()
     await db.refresh(order)
     return order
-

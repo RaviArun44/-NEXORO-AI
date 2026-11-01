@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.database import engine, Base
+from app.core.migrate import run_sqlite_migrations
 from app.api.v1 import api_router
 from app.seed import seed_initial_data
 from app.services.call_queue_manager import call_queue_manager
@@ -21,6 +22,7 @@ logger = logging.getLogger("khaira")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing Khaira AI Voice Automation Platform database schema...")
+    run_sqlite_migrations()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database schema initialized.")

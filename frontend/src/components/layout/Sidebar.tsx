@@ -15,7 +15,8 @@ import {
   Cpu,
   BarChart3,
   Shield,
-  Settings
+  Settings,
+  ShoppingBag
 } from 'lucide-react';
 import { NexoraAvatar } from './NexoraAvatar';
 import { useAuth } from '../../context/AuthContext';
@@ -26,7 +27,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) => {
-  const { user, logout, pendingHandoffsCount } = useAuth();
+  const { user, logout, pendingHandoffsCount, setPortalMode } = useAuth();
 
   // Enterprise Voice Platform Navigation Categories
   const navGroups = [
@@ -34,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
       title: 'Voice Operations',
       items: [
         { id: 'dashboard', label: 'Call Monitoring & KPIs', icon: LayoutDashboard },
+        { id: 'ai-calling', label: 'AI Voice Calling', icon: PhoneCall, badge: '5-Lang' },
         { id: 'live-calls', label: 'AI Voice Receptionist', icon: PhoneCall, badge: 'Live' },
         { id: 'calls', label: 'Call History & Logs', icon: History },
         { id: 'handoff', label: 'Human Handoff Desk', icon: Headphones, count: pendingHandoffsCount },
@@ -107,6 +109,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
           <span>•</span>
           <span>മല</span>
         </div>
+      </div>
+
+      {/* Customer Storefront Live Switch Button */}
+      <div className="p-3 pb-1">
+        <button
+          onClick={() => setPortalMode('customer')}
+          className="w-full flex items-center justify-between px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-xs shadow-emerald-500/20 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center space-x-2">
+            <ShoppingBag className="w-4 h-4 text-emerald-100 group-hover:scale-110 transition-transform" />
+            <span>Customer Storefront</span>
+          </div>
+          <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full font-mono uppercase">
+            Live
+          </span>
+        </button>
       </div>
 
       {/* Categorized Enterprise Navigation Links */}

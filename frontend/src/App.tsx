@@ -18,10 +18,12 @@ import { AnalyticsView } from './views/AnalyticsView';
 import { SettingsView } from './views/SettingsView';
 import { AIConfigView } from './views/AIConfigView';
 import { AuthView } from './views/AuthView';
+import { CustomerStoreView } from './views/CustomerStoreView';
+import { AICallingManagementView } from './views/AICallingManagementView';
 import { Bell, AlertCircle, X, Headphones } from 'lucide-react';
 
 const MainApp: React.FC = () => {
-  const { user, token, loading, setPendingHandoffsCount } = useAuth();
+  const { user, token, loading, setPendingHandoffsCount, portalMode, setPortalMode } = useAuth();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [liveHandoffAlert, setLiveHandoffAlert] = useState<any | null>(null);
 
@@ -79,6 +81,12 @@ const MainApp: React.FC = () => {
     );
   }
 
+  // 1. Customer Shopping Portal
+  if (portalMode === 'customer') {
+    return <CustomerStoreView />;
+  }
+
+  // 2. Admin Portal (Protected)
   if (!token) {
     return <AuthView />;
   }
@@ -87,6 +95,8 @@ const MainApp: React.FC = () => {
     switch (currentTab) {
       case 'dashboard':
         return <DashboardView onNavigate={(tab) => setCurrentTab(tab)} />;
+      case 'ai-calling':
+        return <AICallingManagementView />;
       case 'live-calls':
         return <LiveCallView />;
       case 'calls':
