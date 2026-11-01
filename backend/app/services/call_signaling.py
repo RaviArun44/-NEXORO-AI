@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import json
 from typing import Dict, Set, Any
 from fastapi import WebSocket
 
@@ -9,11 +10,12 @@ class CallSignalingManager:
     """
     Coordinates real-time call events between Customers, AI Agents, and Admin Monitoring.
     Lifecycle: REQUESTED -> RINGING -> ACCEPTED -> ACTIVE -> ENDED / REJECTED / CANCELLED.
+    Relays WebRTC P2P signaling (offer, answer, ICE candidates) for live two-way browser audio.
     """
     def __init__(self):
-        # Set of active Agent WebSockets
+        # Set of active Agent WebSockets (Agent Consoles)
         self.agent_sockets: Set[WebSocket] = set()
-        # Map of call_id -> Set of WebSockets (Customer + Monitoring)
+        # Map of call_id -> Set of WebSockets (Customer + Agent session participants)
         self.call_sockets: Dict[str, Set[WebSocket]] = {}
         # In-memory registry of pending call requests
         self.pending_calls: Dict[str, Dict[str, Any]] = {}
@@ -30,6 +32,7 @@ class CallSignalingManager:
         if call_id not in self.call_sockets:
             self.call_sockets[call_id] = set()
         self.call_sockets[call_id].add(ws)
+        logger.info(f"Registered socket for call {call_id}. Total sockets on call: {len(self.call_sockets[call_id])}")
 
     def unregister_call_socket(self, call_id: str, ws: WebSocket):
         if call_id in self.call_sockets:
@@ -49,17 +52,41 @@ class CallSignalingManager:
         self.agent_sockets -= dead_sockets
 
     async def broadcast_to_call(self, call_id: str, message: Dict[str, Any]):
-        """Sends real-time updates to customer and monitoring participants in a specific call."""
-        if call_id not in self.call_sockets:
-            return
-        dead_sockets = set()
-        for ws in list(self.call_sockets[call_id]):
-            try:
-                await ws.send_json(message)
-            except Exception as e:
-                logger.warning(f"Error sending to call {call_id}: {e}")
-                dead_sockets.add(ws)
-        self.call_sockets[call_id] -= dead_sockets
+        """Sends real-time updates to customer and agent participants in a specific call."""
+        if call_id in self.call_sockets:
+            dead_sockets = set()
+            for ws in list(self.call_sockets[call_id]):
+                try:
+                    await ws.send_json(message)
+                except Exception as e:
+                    logger.warning(f"Error sending to call {call_id}: {e}")
+                    dead_sockets.add(ws)
+            self.call_sockets[call_id] -= dead_sockets
+
+    async def relay_webrtc_signal(self, call_id: str, sender_ws: WebSocket, message: Dict[str, Any]):
+        """
+        Relays WebRTC SDP offer, SDP answer, and ICE candidates between Customer and Agent.
+        """
+        # 1. Relay to other call sockets attached to this call_id
+        if call_id in self.call_sockets:
+            dead_sockets = set()
+            for ws in list(self.call_sockets[call_id]):
+                if ws != sender_ws:
+                    try:
+                        await ws.send_json(message)
+                    except Exception as e:
+                        dead_sockets.add(ws)
+            self.call_sockets[call_id] -= dead_sockets
+
+        # 2. Also relay to agent console sockets
+        dead_agents = set()
+        for ws in list(self.agent_sockets):
+            if ws != sender_ws:
+                try:
+                    await ws.send_json(message)
+                except Exception as e:
+                    dead_agents.add(ws)
+        self.agent_sockets -= dead_agents
 
     async def notify_call_requested(self, call_data: Dict[str, Any]):
         call_id = call_data["id"]
@@ -117,4 +144,3 @@ class CallSignalingManager:
         return list(self.pending_calls.values())
 
 call_signaling = CallSignalingManager()
-

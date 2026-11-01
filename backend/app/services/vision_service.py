@@ -5,7 +5,11 @@ import math
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from decimal import Decimal
-from PIL import Image, ImageStat
+try:
+    from PIL import Image, ImageStat
+except ImportError:
+    Image = None
+    ImageStat = None
 import httpx
 
 from app.core.config import settings

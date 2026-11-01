@@ -22,27 +22,32 @@ import {
   FileText,
   User,
   ArrowRight,
-  ChevronRight
+  ChevronRight,
+  XCircle,
+  Headphones
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api, Order, Product, Appointment, Complaint, CallRecord } from '../services/api';
+import { webrtcService } from '../services/webrtcService';
 import { NexoraAvatar } from '../components/layout/NexoraAvatar';
 
 export const CustomerDashboardView: React.FC = () => {
   const { user, logout } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<'call' | 'orders' | 'products' | 'appointments' | 'complaints' | 'history' | 'faqs'>('call');
 
-  // Call state
+  // Call state: IDLE -> CALLING -> WAITING (Ringing on Agent) -> CONNECTING -> ACTIVE -> ENDED
   const [callState, setCallState] = useState<'IDLE' | 'CALLING' | 'WAITING' | 'CONNECTING' | 'ACTIVE' | 'ENDED'>('IDLE');
   const [callId, setCallId] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
   const [callDuration, setCallDuration] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [speakerEnabled, setSpeakerEnabled] = useState<boolean>(true);
-  const [transcript, setTranscript] = useState<Array<{ speaker: string; text: string; language?: string }>>([]);
+  const [transcript, setTranscript] = useState<Array<{ speaker: string; text: string; language?: string; timestamp?: string }>>([]);
   const [userSpeechInput, setUserSpeechInput] = useState<string>('');
+  const [interimSpeech, setInterimSpeech] = useState<string>('');
   const [isAiSpeaking, setIsAiSpeaking] = useState<boolean>(false);
   const [callSummary, setCallSummary] = useState<any | null>(null);
+  const [callStatusMessage, setCallStatusMessage] = useState<string>('');
 
   // Business Data
   const [orders, setOrders] = useState<Order[]>([]);
@@ -64,6 +69,8 @@ export const CustomerDashboardView: React.FC = () => {
   const timerRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recognitionRef = useRef<any>(null);
+  const callSocketRef = useRef<WebSocket | null>(null);
+  const ringToneIntervalRef = useRef<any>(null);
 
   // Load customer initial records
   useEffect(() => {
@@ -83,6 +90,22 @@ export const CustomerDashboardView: React.FC = () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [callState]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopCallingRingtone();
+      if (callSocketRef.current) {
+        callSocketRef.current.close();
+      }
+      webrtcService.close();
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {}
+      }
+    };
+  }, []);
 
   const loadCustomerData = async () => {
     setLoadingData(true);
@@ -106,6 +129,39 @@ export const CustomerDashboardView: React.FC = () => {
     }
   };
 
+  // Ringtone synthesizer for outgoing call
+  const startCallingRingtone = () => {
+    stopCallingRingtone();
+    const playChime = () => {
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc1 = audioCtx.createOscillator();
+        const osc2 = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc1.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
+        osc2.frequency.setValueAtTime(480, audioCtx.currentTime); // B4
+        gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc1.start();
+        osc2.start();
+        osc1.stop(audioCtx.currentTime + 1.2);
+        osc2.stop(audioCtx.currentTime + 1.2);
+      } catch (e) {}
+    };
+    playChime();
+    ringToneIntervalRef.current = setInterval(playChime, 3200);
+  };
+
+  const stopCallingRingtone = () => {
+    if (ringToneIntervalRef.current) {
+      clearInterval(ringToneIntervalRef.current);
+      ringToneIntervalRef.current = null;
+    }
+  };
+
   // Start Call Flow
   const handleStartCall = async () => {
     try {
@@ -113,23 +169,18 @@ export const CustomerDashboardView: React.FC = () => {
       setTranscript([]);
       setCallDuration(0);
       setCallSummary(null);
+      setCallStatusMessage('Connecting to AI Receptionist line...');
 
-      // 1. Request microphone permission
-      try {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          // Stop track right away after obtaining permission
-          stream.getTracks().forEach((t) => t.stop());
-        }
-      } catch (micErr) {
-        console.warn('Microphone permission request skipped or not granted, continuing with browser voice', micErr);
-      }
+      // 1. Request microphone permission upfront
+      await webrtcService.startLocalAudio();
 
       setCallState('WAITING');
+      setCallStatusMessage('Ringing Agent Console... Waiting for Agent to accept...');
+      startCallingRingtone();
 
-      // 2. Request Call session from backend (which signals Agent Consoles)
+      // 2. Request Call session from backend (which signals Agent Consoles in real-time)
       const res = await api.requestCall({
-        caller_number: user?.phone || '+1-415-555-0142',
+        caller_number: user?.phone || '9876543210',
         caller_name: user?.full_name || 'Customer',
         language: selectedLanguage,
         customer_id: user?.id
@@ -138,31 +189,112 @@ export const CustomerDashboardView: React.FC = () => {
       const newCallId = res.data.call_id;
       setCallId(newCallId);
 
-      // 3. Connect to call session (Auto-connecting / establishing connection)
-      setCallState('CONNECTING');
+      // 3. Connect real-time WebSocket for this call session
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/api/v1/live-calls/ws/${newCallId}`;
+      const ws = new WebSocket(wsUrl);
+      callSocketRef.current = ws;
 
-      // Accept call immediately for autonomous AI receptionist
-      const acceptRes = await api.acceptCall(newCallId, 'ai-receptionist');
-      setCallState('ACTIVE');
+      ws.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.event === 'CALL_ACCEPTED') {
+            stopCallingRingtone();
+            setCallState('ACTIVE');
+            setCallStatusMessage('Connected with NEXORA AI Voice Receptionist');
 
-      const greetingText = acceptRes.data.greeting_text || 'Welcome to Khaira Company! My name is Khaira AI, your autonomous voice assistant. How may I assist you today?';
-      setTranscript([
-        { speaker: 'ai', text: greetingText, language: selectedLanguage }
-      ]);
+            const greetingText = data.call?.greeting_text || data.call?.greeting || 'Welcome to Khaira Company! My name is Khaira AI, your autonomous voice assistant. How may I assist you today?';
+            setTranscript([
+              { speaker: 'ai', text: greetingText, language: selectedLanguage, timestamp: new Date().toLocaleTimeString() }
+            ]);
 
-      // Play neural TTS audio if present
-      if (acceptRes.data.tts?.audio_url && speakerEnabled) {
-        playAiAudio(acceptRes.data.tts.audio_url);
-      }
+            // Play neural TTS audio if present
+            if (data.call?.tts?.audio_url && speakerEnabled) {
+              playAiAudio(data.call.tts.audio_url);
+            }
 
-      // Initialize Web Speech Recognition if available in browser
-      initSpeechRecognition(newCallId);
+            // Initialize WebRTC Peer-to-Peer Two-Way Audio Connection (Initiator)
+            await webrtcService.initializeConnection(newCallId, true, (signalMsg) => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(signalMsg));
+              }
+            });
+
+            // Start continuous Speech Recognition in chosen language
+            initSpeechRecognition(newCallId);
+
+          } else if (data.event === 'CALL_REJECTED') {
+            stopCallingRingtone();
+            webrtcService.close();
+            setCallState('ENDED');
+            setCallStatusMessage('Agent is currently unavailable or declined the call.');
+            alert('Call was declined or agent is currently busy.');
+
+          } else if (data.event === 'CALL_ENDED') {
+            stopCallingRingtone();
+            webrtcService.close();
+            if (recognitionRef.current) {
+              try { recognitionRef.current.stop(); } catch (e) {}
+            }
+            setCallState('ENDED');
+            if (data.call) setCallSummary(data.call);
+            loadCustomerData();
+
+          } else if (data.event === 'TRANSCRIPT_TURN') {
+            const t = data.turn;
+            if (t) {
+              setTranscript((prev) => [
+                ...prev,
+                { speaker: t.speaker || 'ai', text: t.reply_text || t.user_query, language: t.language, timestamp: new Date().toLocaleTimeString() }
+              ]);
+              if (t.tts?.audio_url && speakerEnabled) {
+                playAiAudio(t.tts.audio_url);
+              }
+            }
+
+          } else if (data.event === 'ai_response') {
+            setTranscript((prev) => [
+              ...prev,
+              { speaker: 'ai', text: data.reply_text, language: data.language, timestamp: new Date().toLocaleTimeString() }
+            ]);
+            if (data.tts?.audio_url && speakerEnabled) {
+              playAiAudio(data.tts.audio_url);
+            }
+
+          } else if (['webrtc_offer', 'webrtc_answer', 'webrtc_ice'].includes(data.event)) {
+            await webrtcService.handleSignalMessage(data);
+          }
+        } catch (e) {
+          console.error('[Customer WebSocket] Error processing message:', e);
+        }
+      };
+
+      ws.onerror = (e) => {
+        console.warn('[Customer WebSocket] Error:', e);
+      };
 
     } catch (err: any) {
       console.error('Call initialization failed', err);
+      stopCallingRingtone();
       alert(err.response?.data?.detail || 'Unable to establish call with AI Receptionist. Please try again.');
       setCallState('IDLE');
     }
+  };
+
+  const handleCancelCall = async () => {
+    stopCallingRingtone();
+    if (callId) {
+      try {
+        await api.cancelCall(callId);
+      } catch (e) {}
+    }
+    webrtcService.close();
+    if (callSocketRef.current) {
+      callSocketRef.current.close();
+    }
+    setCallState('IDLE');
+    setCallStatusMessage('');
   };
 
   const playAiAudio = (url: string) => {
@@ -172,7 +304,7 @@ export const CustomerDashboardView: React.FC = () => {
     }
     const audio = new Audio(url);
     audioRef.current = audio;
-    audio.play().catch(() => console.log('Audio autoplay prevented by browser'));
+    audio.play().catch(() => console.log('Audio autoplay prevented by browser policy'));
     audio.onended = () => {
       setIsAiSpeaking(false);
     };
@@ -181,27 +313,50 @@ export const CustomerDashboardView: React.FC = () => {
   const initSpeechRecognition = (cId: string) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = false;
-      const langMap: Record<string, string> = {
-        en: 'en-US',
-        ta: 'ta-IN',
-        hi: 'hi-IN',
-        te: 'te-IN',
-        ml: 'ml-IN'
-      };
-      recognition.lang = langMap[selectedLanguage] || 'en-US';
-
-      recognition.onresult = (event: any) => {
-        const last = event.results.length - 1;
-        const text = event.results[last][0].transcript.trim();
-        if (text && !isMuted) {
-          handleSendTurn(text, cId);
-        }
-      };
-
       try {
+        if (recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch (e) {}
+        }
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        const langMap: Record<string, string> = {
+          en: 'en-US',
+          ta: 'ta-IN',
+          hi: 'hi-IN',
+          te: 'te-IN',
+          ml: 'ml-IN'
+        };
+        recognition.lang = langMap[selectedLanguage] || 'en-US';
+
+        recognition.onresult = (event: any) => {
+          let interim = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              const text = event.results[i][0].transcript.trim();
+              if (text && !isMuted) {
+                setInterimSpeech('');
+                handleSendTurn(text, cId);
+              }
+            } else {
+              interim += event.results[i][0].transcript;
+            }
+          }
+          if (interim) {
+            setInterimSpeech(interim);
+          }
+        };
+
+        recognition.onend = () => {
+          // Restart recognition if call is still active
+          if (callState === 'ACTIVE' || callSocketRef.current?.readyState === WebSocket.OPEN) {
+            try {
+              recognition.start();
+            } catch (e) {}
+          }
+        };
+
         recognition.start();
         recognitionRef.current = recognition;
       } catch (e) {
@@ -212,11 +367,15 @@ export const CustomerDashboardView: React.FC = () => {
 
   const handleSendTurn = async (text: string, currentCallId?: string) => {
     const activeId = currentCallId || callId;
-    if (!text.trim() || !activeId || callState !== 'ACTIVE') return;
+    if (!text.trim() || !activeId) return;
 
     // Add user turn to transcript immediately
-    setTranscript((prev) => [...prev, { speaker: 'customer', text }]);
+    setTranscript((prev) => [
+      ...prev,
+      { speaker: 'customer', text, language: selectedLanguage, timestamp: new Date().toLocaleTimeString() }
+    ]);
     setUserSpeechInput('');
+    setInterimSpeech('');
 
     try {
       const res = await api.sendTurn(activeId, text, selectedLanguage);
@@ -224,7 +383,7 @@ export const CustomerDashboardView: React.FC = () => {
 
       setTranscript((prev) => [
         ...prev,
-        { speaker: 'ai', text: data.reply_text, language: data.language }
+        { speaker: 'ai', text: data.reply_text, language: data.language, timestamp: new Date().toLocaleTimeString() }
       ]);
 
       if (data.tts?.audio_url && speakerEnabled) {
@@ -240,6 +399,7 @@ export const CustomerDashboardView: React.FC = () => {
   };
 
   const handleEndCall = async () => {
+    stopCallingRingtone();
     if (!callId) {
       setCallState('IDLE');
       return;
@@ -248,11 +408,12 @@ export const CustomerDashboardView: React.FC = () => {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (e) { }
+      } catch (e) {}
     }
     if (audioRef.current) {
       audioRef.current.pause();
     }
+    webrtcService.close();
 
     try {
       const res = await api.endCall(callId, 'RESOLVED_BY_AI');
@@ -261,8 +422,28 @@ export const CustomerDashboardView: React.FC = () => {
       console.warn('End call error', e);
     }
 
+    if (callSocketRef.current) {
+      callSocketRef.current.close();
+    }
+
     setCallState('ENDED');
+    setCallStatusMessage('Call Ended');
     loadCustomerData();
+  };
+
+  const toggleMute = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    webrtcService.setMuted(next);
+  };
+
+  const toggleSpeaker = () => {
+    const next = !speakerEnabled;
+    setSpeakerEnabled(next);
+    webrtcService.setSpeaker(next);
+    if (!next && audioRef.current) {
+      audioRef.current.pause();
+    }
   };
 
   const handleCreateComplaint = async (e: React.FormEvent) => {
@@ -329,7 +510,7 @@ export const CustomerDashboardView: React.FC = () => {
                   Client Hub
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400">Autonomous 24/7 AI Voice Assistance</p>
+              <p className="text-[10px] text-slate-400">Autonomous 24/7 AI Voice Assistance & Live Telephony</p>
             </div>
           </div>
 
@@ -363,10 +544,11 @@ export const CustomerDashboardView: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-1 overflow-x-auto border-t border-slate-100 text-xs font-semibold">
           <button
             onClick={() => setActiveSubTab('call')}
-            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${activeSubTab === 'call'
+            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+              activeSubTab === 'call'
                 ? 'border-blue-600 text-blue-600 bg-blue-50/50'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+            }`}
           >
             <PhoneCall className="w-3.5 h-3.5" />
             <span>Call AI Agent</span>
@@ -374,10 +556,11 @@ export const CustomerDashboardView: React.FC = () => {
 
           <button
             onClick={() => setActiveSubTab('orders')}
-            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${activeSubTab === 'orders'
+            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+              activeSubTab === 'orders'
                 ? 'border-blue-600 text-blue-600 bg-blue-50/50'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+            }`}
           >
             <Package className="w-3.5 h-3.5" />
             <span>My Orders & Delivery</span>
@@ -390,10 +573,11 @@ export const CustomerDashboardView: React.FC = () => {
 
           <button
             onClick={() => setActiveSubTab('products')}
-            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${activeSubTab === 'products'
+            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+              activeSubTab === 'products'
                 ? 'border-blue-600 text-blue-600 bg-blue-50/50'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+            }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Product Catalog</span>
@@ -401,10 +585,11 @@ export const CustomerDashboardView: React.FC = () => {
 
           <button
             onClick={() => setActiveSubTab('appointments')}
-            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${activeSubTab === 'appointments'
+            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+              activeSubTab === 'appointments'
                 ? 'border-blue-600 text-blue-600 bg-blue-50/50'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+            }`}
           >
             <Calendar className="w-3.5 h-3.5" />
             <span>Appointments Desk</span>
@@ -412,10 +597,11 @@ export const CustomerDashboardView: React.FC = () => {
 
           <button
             onClick={() => setActiveSubTab('complaints')}
-            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${activeSubTab === 'complaints'
+            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+              activeSubTab === 'complaints'
                 ? 'border-blue-600 text-blue-600 bg-blue-50/50'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+            }`}
           >
             <AlertOctagon className="w-3.5 h-3.5" />
             <span>Support & Tickets</span>
@@ -423,10 +609,11 @@ export const CustomerDashboardView: React.FC = () => {
 
           <button
             onClick={() => setActiveSubTab('history')}
-            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${activeSubTab === 'history'
+            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+              activeSubTab === 'history'
                 ? 'border-blue-600 text-blue-600 bg-blue-50/50'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+            }`}
           >
             <History className="w-3.5 h-3.5" />
             <span>Call History & Transcripts</span>
@@ -434,10 +621,11 @@ export const CustomerDashboardView: React.FC = () => {
 
           <button
             onClick={() => setActiveSubTab('faqs')}
-            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${activeSubTab === 'faqs'
+            className={`py-2.5 px-4 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+              activeSubTab === 'faqs'
                 ? 'border-blue-600 text-blue-600 bg-blue-50/50'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+            }`}
           >
             <HelpCircle className="w-3.5 h-3.5" />
             <span>Help & FAQs</span>
@@ -458,34 +646,34 @@ export const CustomerDashboardView: React.FC = () => {
                   <div className="space-y-2 text-center sm:text-left">
                     <div className="inline-flex items-center space-x-1.5 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full text-xs font-semibold text-blue-700">
                       <Radio className="w-3.5 h-3.5 animate-pulse text-blue-600" />
-                      <span>Zero-Wait Telephony Line</span>
+                      <span>Real-Time WebRTC Two-Way Audio</span>
                     </div>
                     <h1 className="text-2xl font-bold text-slate-900">
                       Speak with NEXORA Voice Receptionist
                     </h1>
                     <p className="text-xs text-slate-500 max-w-md">
-                      Ask about orders, delivery statuses, product quotes, consultation appointments, or request a human specialist in 5 languages.
+                      Ask about orders, delivery statuses, product quotes, consultation appointments, or speak directly with an agent in 5 languages.
                     </p>
 
                     {/* Language selector */}
                     <div className="pt-2 flex items-center justify-center sm:justify-start space-x-2">
-                      <span className="text-xs font-semibold text-slate-600">Language:</span>
+                      <span className="text-xs font-semibold text-slate-600">Preferred Language:</span>
                       <select
                         value={selectedLanguage}
                         onChange={(e) => setSelectedLanguage(e.target.value)}
-                        disabled={callState === 'ACTIVE'}
-                        className="px-3 py-1 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={callState === 'ACTIVE' || callState === 'WAITING'}
+                        className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                       >
                         <option value="en">English (Indian English)</option>
-                        <option value="ta">Tamil (தமிழ்)</option>
-                        <option value="hi">Hindi (हिन्दी)</option>
-                        <option value="te">Telugu (తెలుగు)</option>
-                        <option value="ml">Malayalam (മലയാളം)</option>
+                        <option value="ta">Tamil (தமிழ் - Pallavi Voice)</option>
+                        <option value="hi">Hindi (हिन्दी - Swara Voice)</option>
+                        <option value="te">Telugu (తెలుగు - Shruti Voice)</option>
+                        <option value="ml">Malayalam (മലയാളം - Sobhana Voice)</option>
                       </select>
                     </div>
                   </div>
 
-                  {/* Big Call Button & Avatar */}
+                  {/* Big Call Button & States */}
                   <div className="flex flex-col items-center shrink-0">
                     {callState === 'IDLE' || callState === 'ENDED' ? (
                       <button
@@ -493,8 +681,23 @@ export const CustomerDashboardView: React.FC = () => {
                         className="w-28 h-28 rounded-full bg-gradient-to-tr from-blue-600 via-sky-500 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-xl shadow-blue-500/30 flex flex-col items-center justify-center space-y-1.5 transition-all transform hover:scale-105 active:scale-95 cursor-pointer ring-8 ring-blue-50"
                       >
                         <PhoneCall className="w-8 h-8 animate-bounce" />
-                        <span className="text-[11px] font-extrabold uppercase tracking-wider">CALL AI</span>
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider">CALL AGENT</span>
                       </button>
+                    ) : callState === 'WAITING' || callState === 'CALLING' ? (
+                      <div className="flex flex-col items-center space-y-3">
+                        <div className="relative">
+                          <div className="w-20 h-20 rounded-full bg-amber-500 text-white flex items-center justify-center animate-pulse shadow-lg ring-8 ring-amber-100">
+                            <PhoneCall className="w-8 h-8 animate-bounce" />
+                          </div>
+                        </div>
+                        <p className="text-xs font-bold text-amber-700 text-center animate-pulse">Ringing Agent Console...</p>
+                        <button
+                          onClick={handleCancelCall}
+                          className="px-4 py-1.5 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Cancel Call
+                        </button>
+                      </div>
                     ) : (
                       <div className="flex flex-col items-center space-y-3">
                         <div className="relative">
@@ -517,13 +720,14 @@ export const CustomerDashboardView: React.FC = () => {
                 {callState !== 'IDLE' && (
                   <div className="mt-6 pt-5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
                     <div className="flex items-center space-x-3">
-                      <span className={`px-2.5 py-1 rounded-full font-bold uppercase text-[10px] tracking-wider ${callState === 'ACTIVE'
+                      <span className={`px-2.5 py-1 rounded-full font-bold uppercase text-[10px] tracking-wider ${
+                        callState === 'ACTIVE'
                           ? 'bg-emerald-100 text-emerald-700 animate-pulse'
                           : callState === 'ENDED'
-                            ? 'bg-slate-100 text-slate-700'
-                            : 'bg-amber-100 text-amber-700 animate-bounce'
-                        }`}>
-                        {callState}
+                          ? 'bg-slate-100 text-slate-700'
+                          : 'bg-amber-100 text-amber-700 animate-bounce'
+                      }`}>
+                        {callState === 'WAITING' ? 'RINGING AGENT...' : callState}
                       </span>
                       {callState === 'ACTIVE' && (
                         <div className="flex items-center space-x-1 text-slate-500 font-mono font-semibold">
@@ -531,10 +735,15 @@ export const CustomerDashboardView: React.FC = () => {
                           <span>{formatSeconds(callDuration)}</span>
                         </div>
                       )}
+                      {callStatusMessage && (
+                        <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">
+                          {callStatusMessage}
+                        </span>
+                      )}
                       {isAiSpeaking && (
                         <span className="text-sky-600 font-semibold text-[11px] flex items-center space-x-1">
                           <Volume2 className="w-3.5 h-3.5 animate-bounce" />
-                          <span>AI Speaking...</span>
+                          <span>Voice Speaking...</span>
                         </span>
                       )}
                     </div>
@@ -543,22 +752,24 @@ export const CustomerDashboardView: React.FC = () => {
                     {callState === 'ACTIVE' && (
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => setIsMuted(!isMuted)}
-                          className={`p-2 rounded-xl border transition-all cursor-pointer ${isMuted
+                          onClick={toggleMute}
+                          className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                            isMuted
                               ? 'bg-rose-50 border-rose-200 text-rose-600'
                               : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                            }`}
+                          }`}
                           title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
                         >
                           {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                         </button>
                         <button
-                          onClick={() => setSpeakerEnabled(!speakerEnabled)}
-                          className={`p-2 rounded-xl border transition-all cursor-pointer ${!speakerEnabled
+                          onClick={toggleSpeaker}
+                          className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                            !speakerEnabled
                               ? 'bg-rose-50 border-rose-200 text-rose-600'
                               : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                            }`}
-                          title={speakerEnabled ? 'Mute AI Audio' : 'Enable AI Audio'}
+                          }`}
+                          title={speakerEnabled ? 'Mute Audio' : 'Enable Audio'}
                         >
                           {speakerEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
                         </button>
@@ -586,7 +797,7 @@ export const CustomerDashboardView: React.FC = () => {
                       <NexoraAvatar size="md" />
                       <p className="font-medium text-slate-600">No active conversation yet.</p>
                       <p className="text-[11px] text-slate-400 max-w-xs">
-                        Click the "CALL AI" button above to start a live voice call with the AI Receptionist.
+                        Click the "CALL AGENT" button above. The agent tab will receive your call and connect in real-time.
                       </p>
                     </div>
                   ) : (
@@ -596,18 +807,34 @@ export const CustomerDashboardView: React.FC = () => {
                         className={`flex flex-col ${item.speaker === 'customer' ? 'items-end' : 'items-start'}`}
                       >
                         <span className="text-[10px] font-semibold text-slate-400 mb-1 px-1">
-                          {item.speaker === 'customer' ? 'You' : 'Khaira AI Receptionist'}
+                          {item.speaker === 'customer' ? 'You (Customer)' : item.speaker === 'agent' ? 'Live Human Agent' : 'NEXORA AI Receptionist'}
+                          {item.timestamp && ` • ${item.timestamp}`}
                         </span>
                         <div
-                          className={`p-3 rounded-2xl max-w-md text-xs leading-relaxed ${item.speaker === 'customer'
+                          className={`p-3 rounded-2xl max-w-md text-xs leading-relaxed ${
+                            item.speaker === 'customer'
                               ? 'bg-blue-600 text-white rounded-br-none shadow-xs'
+                              : item.speaker === 'agent'
+                              ? 'bg-indigo-600 text-white rounded-bl-none shadow-xs'
                               : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200/80'
-                            }`}
+                          }`}
                         >
                           {item.text}
                         </div>
                       </div>
                     ))
+                  )}
+
+                  {/* Interim speech recognition preview */}
+                  {interimSpeech && (
+                    <div className="flex flex-col items-end opacity-75">
+                      <span className="text-[10px] font-semibold text-blue-500 mb-1 px-1 animate-pulse">
+                        Speaking...
+                      </span>
+                      <div className="p-3 rounded-2xl max-w-md text-xs leading-relaxed bg-blue-100 text-blue-900 border border-blue-200 rounded-br-none italic">
+                        {interimSpeech}
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -622,7 +849,7 @@ export const CustomerDashboardView: React.FC = () => {
                   >
                     <input
                       type="text"
-                      placeholder="Or type a question (e.g. 'Where is order ORD-849201?')..."
+                      placeholder={`Type question in ${selectedLanguage.toUpperCase()} (e.g. 'Where is order ORD-2026-00001?')...`}
                       value={userSpeechInput}
                       onChange={(e) => setUserSpeechInput(e.target.value)}
                       className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -683,10 +910,10 @@ export const CustomerDashboardView: React.FC = () => {
                 </div>
                 <div className="space-y-2 text-xs">
                   <button
-                    onClick={() => handleSendTurn('Where is my order ORD-849201?')}
+                    onClick={() => handleSendTurn('Where is my order ORD-2026-00001?')}
                     className="w-full text-left p-2.5 bg-white/90 hover:bg-white rounded-xl border border-blue-200/70 text-slate-700 transition-all cursor-pointer font-medium hover:border-blue-400 shadow-2xs"
                   >
-                    💬 "Where is my order ORD-849201?"
+                    💬 "Where is my order ORD-2026-00001?"
                   </button>
                   <button
                     onClick={() => handleSendTurn('What products are currently in stock?')}
@@ -695,10 +922,10 @@ export const CustomerDashboardView: React.FC = () => {
                     💬 "What products are currently in stock?"
                   </button>
                   <button
-                    onClick={() => handleSendTurn('என் ஆர்டர் ORD-739120 எங்கே உள்ளது?')}
+                    onClick={() => handleSendTurn('என் ஆர்டர் ORD-2026-00001 எங்கே உள்ளது?')}
                     className="w-full text-left p-2.5 bg-white/90 hover:bg-white rounded-xl border border-blue-200/70 text-slate-700 transition-all cursor-pointer font-medium hover:border-blue-400 shadow-2xs"
                   >
-                    💬 "என் ஆர்டர் ORD-739120 எங்கே உள்ளது?" (Tamil)
+                    💬 "என் ஆர்டர் ORD-2026-00001 எங்கே உள்ளது?" (Tamil)
                   </button>
                   <button
                     onClick={() => handleSendTurn('I want to schedule an appointment for a demo session tomorrow')}
@@ -733,23 +960,24 @@ export const CustomerDashboardView: React.FC = () => {
                 <div key={ord.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-bold text-sm text-blue-700">{ord.order_number}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${ord.status === 'SHIPPED'
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                      ord.status === 'SHIPPED' || ord.status === 'ORDER_CONFIRMED'
                         ? 'bg-emerald-100 text-emerald-700'
                         : ord.status === 'DELIVERED'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}>
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
                       {ord.status}
                     </span>
                   </div>
 
                   <div className="text-xs space-y-1 text-slate-600">
                     <p className="font-semibold text-slate-800">
-                      Amount: {ord.currency} {ord.total_amount.toFixed(2)} ({ord.payment_status})
+                      Amount: {ord.currency} {ord.total_amount?.toFixed(2)} ({ord.payment_status})
                     </p>
-                    <p>Courier: <span className="font-medium text-slate-800">{ord.courier_name || 'FedEx Express'}</span></p>
-                    <p className="font-mono text-[11px]">Tracking: <span className="text-blue-600 font-bold">{ord.tracking_number}</span></p>
-                    <p className="text-[11px] text-slate-400">Shipping to: {ord.shipping_address}</p>
+                    <p>Courier: <span className="font-medium text-slate-800">{ord.courier_name || 'BlueDart Express'}</span></p>
+                    <p>Tracking Number: <span className="font-mono text-slate-800">{ord.tracking_number || 'TRK-2026-ACTIVE'}</span></p>
+                    <p>Estimated Delivery: <span className="font-medium text-slate-800">{ord.estimated_delivery ? new Date(ord.estimated_delivery).toLocaleDateString() : 'In 2 days'}</span></p>
                   </div>
                 </div>
               ))}
@@ -761,34 +989,26 @@ export const CustomerDashboardView: React.FC = () => {
         {activeSubTab === 'products' && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Company Product Catalog & Hardware</h2>
-              <p className="text-xs text-slate-500">Official catalog verified for the AI Receptionist knowledge base.</p>
+              <h2 className="text-lg font-bold text-slate-800">Unified Product Catalog</h2>
+              <p className="text-xs text-slate-500">Live products and verified inventory available across unified channels.</p>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {products.map((p) => (
-                <div key={p.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">{p.sku}</span>
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                        {p.stock_quantity} in stock
-                      </span>
-                    </div>
-                    <h3 className="font-bold text-sm text-slate-800">{p.name}</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed">{p.description}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {products.map((prod) => (
+                <div key={prod.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-bold text-sm text-slate-800">{prod.name}</h3>
+                    <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-mono">
+                      {prod.sku}
+                    </span>
                   </div>
-                  <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-base font-bold text-slate-900">{p.currency} {p.price.toFixed(2)}</span>
-                    <button
-                      onClick={() => {
-                        setActiveSubTab('call');
-                        handleSendTurn(`Tell me more about ${p.name} and warranty terms`);
-                      }}
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 cursor-pointer"
-                    >
-                      Ask AI about this →
-                    </button>
+                  <p className="text-xs text-slate-500 line-clamp-2">{prod.description}</p>
+                  <div className="pt-2 flex items-center justify-between text-xs">
+                    <span className="font-bold text-sm text-slate-900">
+                      {prod.currency} {prod.price.toFixed(2)}
+                    </span>
+                    <span className="text-emerald-600 font-semibold text-[11px]">
+                      ● In Stock ({prod.stock_quantity})
+                    </span>
                   </div>
                 </div>
               ))}
@@ -800,21 +1020,15 @@ export const CustomerDashboardView: React.FC = () => {
         {activeSubTab === 'appointments' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
-              <h2 className="text-lg font-bold text-slate-800">Scheduled Appointments</h2>
+              <h2 className="text-lg font-bold text-slate-800">Your Scheduled Appointments</h2>
               <div className="space-y-3">
                 {appointments.map((appt) => (
-                  <div key={appt.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold">
-                        {appt.appointment_number}
-                      </span>
-                      <h4 className="font-bold text-xs text-slate-800">{appt.service_name}</h4>
-                      <p className="text-[11px] text-slate-500">
-                        {appt.scheduled_time} ({appt.duration_minutes} mins)
-                      </p>
-                      <p className="text-[10px] text-slate-400">{appt.notes}</p>
+                  <div key={appt.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-800">{appt.service_name}</h4>
+                      <p className="text-xs text-slate-500">{new Date(appt.scheduled_time).toLocaleString()}</p>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase bg-blue-100 text-blue-700">
                       {appt.status}
                     </span>
                   </div>
@@ -822,41 +1036,35 @@ export const CustomerDashboardView: React.FC = () => {
               </div>
             </div>
 
-            {/* Book Slot Form */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs h-fit space-y-3">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
               <h3 className="font-bold text-sm text-slate-800">Book New Consultation</h3>
               {apptSuccess && (
-                <div className="p-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs">
+                <div className="p-2.5 bg-emerald-50 text-emerald-700 text-xs rounded-xl font-medium">
                   Appointment scheduled successfully!
                 </div>
               )}
               <form onSubmit={handleBookAppointment} className="space-y-3 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Service</label>
-                  <select
+                  <input
+                    type="text"
                     value={apptService}
                     onChange={(e) => setApptService(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
-                  >
-                    <option value="Enterprise PBX Integration Consultation">Enterprise PBX Consultation</option>
-                    <option value="Khaira Enterprise AI Solution Architecture Demo">AI Solution Architecture Demo</option>
-                    <option value="Hardware Gateway Warranty Inspection">Hardware Warranty Inspection</option>
-                  </select>
+                  />
                 </div>
-
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Date & Time</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Preferred Date & Time</label>
                   <input
                     type="text"
                     value={apptDate}
                     onChange={(e) => setApptDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
                   />
                 </div>
-
                 <button
                   type="submit"
-                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors cursor-pointer"
+                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs"
                 >
                   Confirm Appointment
                 </button>
@@ -869,49 +1077,48 @@ export const CustomerDashboardView: React.FC = () => {
         {activeSubTab === 'complaints' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
-              <h2 className="text-lg font-bold text-slate-800">Your Support Tickets & Disputes</h2>
+              <h2 className="text-lg font-bold text-slate-800">Support & Grievance Tickets</h2>
               <div className="space-y-3">
                 {complaints.map((comp) => (
-                  <div key={comp.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-bold text-rose-600">{comp.ticket_number}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                  <div key={comp.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono text-xs font-bold text-blue-700">{comp.ticket_number}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-amber-100 text-amber-700">
                         {comp.status}
                       </span>
                     </div>
-                    <h4 className="font-bold text-xs text-slate-800">{comp.title}</h4>
-                    <p className="text-xs text-slate-600">{comp.description}</p>
+                    <h4 className="font-bold text-sm text-slate-800">{comp.title}</h4>
+                    <p className="text-xs text-slate-500">{comp.description}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Register Complaint Form */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs h-fit space-y-3">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
               <h3 className="font-bold text-sm text-slate-800">Register Support Ticket</h3>
               {complaintSuccess && (
-                <div className="p-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs">
-                  Ticket created and escalated to support!
+                <div className="p-2.5 bg-emerald-50 text-emerald-700 text-xs rounded-xl font-medium">
+                  Support ticket registered successfully!
                 </div>
               )}
               <form onSubmit={handleCreateComplaint} className="space-y-3 text-xs">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Subject</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Issue Title</label>
                   <input
                     type="text"
                     required
-                    placeholder="Brief issue summary..."
+                    placeholder="e.g. Delayed package delivery"
                     value={complaintTitle}
                     onChange={(e) => setComplaintTitle(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Details</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Detailed Description</label>
                   <textarea
                     rows={3}
                     required
-                    placeholder="Describe your issue or dispute in detail..."
+                    placeholder="Provide details about your query or grievance..."
                     value={complaintDesc}
                     onChange={(e) => setComplaintDesc(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
@@ -919,7 +1126,7 @@ export const CustomerDashboardView: React.FC = () => {
                 </div>
                 <button
                   type="submit"
-                  className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl transition-colors cursor-pointer"
+                  className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-xs"
                 >
                   Submit Ticket
                 </button>
@@ -931,47 +1138,52 @@ export const CustomerDashboardView: React.FC = () => {
         {/* SUBTAB 6: CALL HISTORY */}
         {activeSubTab === 'history' && (
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-slate-800">Your Previous AI Voice Conversations</h2>
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">Voice Interaction History</h2>
+              <p className="text-xs text-slate-500">Review past conversations, summaries, and resolution outcomes.</p>
+            </div>
             <div className="space-y-3">
               {callHistory.map((call) => (
-                <div key={call.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-mono text-slate-400 text-[11px]">{call.created_at}</span>
-                    <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full uppercase">
-                      {call.language}
+                <div key={call.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-mono font-bold text-blue-700">Call ID: {call.id.slice(0, 8)}...</span>
+                    <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+                      {call.duration_seconds}s • [{call.language?.toUpperCase() || 'EN'}]
                     </span>
                   </div>
-                  <p className="text-xs text-slate-700 font-medium">
-                    {call.summary || 'Customer inquiry addressed by AI receptionist.'}
+                  <p className="text-xs text-slate-700">
+                    <span className="font-semibold">Outcome:</span> {call.outcome || 'RESOLVED_BY_AI'}
                   </p>
+                  {call.summary && (
+                    <p className="text-xs text-slate-500 italic bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                      "{call.summary}"
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* SUBTAB 7: HELP & FAQS */}
+        {/* SUBTAB 7: FAQS */}
         {activeSubTab === 'faqs' && (
-          <div className="max-w-3xl mx-auto space-y-4">
-            <h2 className="text-lg font-bold text-slate-800">Frequently Asked Questions</h2>
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">Frequently Asked Questions</h2>
+              <p className="text-xs text-slate-500">Common questions about NEXORA AI Receptionist and Khaira Company.</p>
+            </div>
             <div className="space-y-3 text-xs">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-                <h4 className="font-bold text-slate-800">How does the AI voice receptionist work?</h4>
-                <p className="text-slate-600 leading-relaxed">
-                  Our system combines Faster-Whisper automatic speech recognition, neural language detection, and on-premises LLaMA reasoning with 100% grounded company documents to answer questions accurately without hallucinating.
-                </p>
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
+                <h4 className="font-bold text-slate-800">What languages can I speak with the AI?</h4>
+                <p className="text-slate-600">You can speak naturally in English, Tamil (தமிழ்), Hindi (हिन्दी), Telugu (తెలుగు), and Malayalam (മലയാളം).</p>
               </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-                <h4 className="font-bold text-slate-800">What is the return and replacement policy?</h4>
-                <p className="text-slate-600 leading-relaxed">
-                  All NEXORA hardware devices carry an unconditional 2-year manufacturer warranty. You may request returns within 30 days of delivery in original packaging. Express replacement units ship within 2 business days.
-                </p>
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
+                <h4 className="font-bold text-slate-800">How do I track my order via voice?</h4>
+                <p className="text-slate-600">Simply click "Call AI Agent" and say "Where is my order?" or provide your order ID (e.g. ORD-2026-00001). The AI will fetch your live delivery status.</p>
               </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-                <h4 className="font-bold text-slate-800">Can I speak in languages other than English?</h4>
-                <p className="text-slate-600 leading-relaxed">
-                  Yes! We natively support English, Tamil (தமிழ்), Hindi (हिन्दी), Telugu (తెలుగు), and Malayalam (മലയാളം) with automatic language detection.
-                </p>
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
+                <h4 className="font-bold text-slate-800">Can I be transferred to a real human agent?</h4>
+                <p className="text-slate-600">Yes! Just say "Connect me to a human specialist" at any time. The AI will escalate and connect you to the agent console.</p>
               </div>
             </div>
           </div>
