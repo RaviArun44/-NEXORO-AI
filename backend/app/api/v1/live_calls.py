@@ -107,7 +107,9 @@ async def request_customer_call(
     try:
         body_data = await request.json()
     except Exception:
-        pass
+        body_data = {}
+    if not isinstance(body_data, dict):
+        body_data = {}
     caller_number = body_data.get("caller_number") or caller_number or "+91-98401-00199"
     caller_name = body_data.get("caller_name") or caller_name or "Valued Customer"
     language = body_data.get("language") or language or "en"
@@ -185,7 +187,9 @@ async def accept_call_request(
     try:
         body_data = await request.json()
     except Exception:
-        pass
+        body_data = {}
+    if not isinstance(body_data, dict):
+        body_data = {}
     agent_id = body_data.get("agent_id") or agent_id
     """
     AI Agent accepts the incoming call.
@@ -281,7 +285,9 @@ async def reject_call_request(
     try:
         body_data = await request.json()
     except Exception:
-        pass
+        body_data = {}
+    if not isinstance(body_data, dict):
+        body_data = {}
     reason = body_data.get("reason") or reason or "Agent busy"
     """Rejects or cancels a requested call."""
     stmt = select(Call).where(Call.id == call_id)
@@ -361,6 +367,8 @@ async def process_call_turn(
     try:
         body_data = await request.json()
     except Exception:
+        body_data = {}
+    if not isinstance(body_data, dict):
         body_data = {}
 
     c_id = body_data.get("call_id") or call_id
@@ -499,7 +507,9 @@ async def end_live_call(
     try:
         body_data = await request.json()
     except Exception:
-        pass
+        body_data = {}
+    if not isinstance(body_data, dict):
+        body_data = {}
     call_id = body_data.get("call_id") or call_id
     outcome = body_data.get("outcome") or outcome or "RESOLVED_BY_AI"
     if not call_id:
