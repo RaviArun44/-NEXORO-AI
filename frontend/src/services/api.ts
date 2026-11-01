@@ -418,11 +418,22 @@ export const api = {
   startCall: (callerNumber: any, language?: string) =>
     typeof callerNumber === 'object'
       ? apiClient.post('/live-calls/start', callerNumber)
-      : apiClient.post('/live-calls/start', { caller_number: callerNumber, language }),
-  endCall: (callId: string, outcome?: string) => apiClient.post(`/live-calls/${callId}/end`, { outcome }),
-  bargeIn: (callId: string) => apiClient.post(`/live-calls/${callId}/barge-in`),
-  sendTurn: (callId: string, text: string, language?: string) =>
-    apiClient.post(`/live-calls/${callId}/turn`, { text, language }),
+      : apiClient.post('/live-calls/start', null, { params: { caller_number: callerNumber, language } }),
+  endCall: (callId: string, outcome?: string) => apiClient.post('/live-calls/end', null, { params: { call_id: callId, outcome } }),
+  bargeIn: (callId: string) => apiClient.post('/live-calls/barge-in', null, { params: { call_id: callId } }),
+  sendTurn: (callId: string | null, text: string, language?: string, imageUrls?: string[]) =>
+    apiClient.post('/live-calls/turn', {
+      call_id: callId,
+      user_text: text,
+      language: language || 'auto',
+      image_urls: imageUrls || []
+    }),
+  uploadImages: (formData: FormData) =>
+    apiClient.post('/live-calls/upload-images', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+  synthesizeVoice: (text: string, language?: string, callId?: string) =>
+    apiClient.post('/live-calls/synthesize-voice', { text, language, call_id: callId }),
 
   // Customers (Admin)
   getCustomers: (params?: any) => apiClient.get<Customer[]>('/customers', { params }),

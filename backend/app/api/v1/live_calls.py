@@ -1,21 +1,31 @@
+import os
+import uuid
 import logging
-from typing import Optional, Dict, Any
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, Body
+from typing import Optional, Dict, Any, List
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, Body, UploadFile, File, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
+from pydantic import BaseModel
 
+from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
 from app.models.call import Call
 from app.services.conversation_orchestrator import orchestrator
 from app.services.speech_service import speech_service
+from app.services.vision_service import vision_service
 from app.services.human_handoff_service import human_handoff_service
 from app.services.ai_engine import ai_engine
 from app.services.call_queue_manager import call_queue_manager
-from app.schemas.call import CallResponse
+from app.schemas.call import CallResponse, TurnRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+class VoiceSynthesisRequest(BaseModel):
+    text: str
+    language: Optional[str] = "en"
+    call_id: Optional[str] = None
 
 @router.post("/start")
 async def start_live_call(
@@ -81,28 +91,115 @@ async def start_live_call(
         "started_at": call.start_time.isoformat()
     }
 
+@router.post("/upload-images")
+async def upload_images(
+    files: List[UploadFile] = File(...)
+):
+    """
+    Accepts 2 or more uploaded images for Multimodal Vision AI.
+    Saves to data_storage/uploads/ and runs computer vision inspection.
+    Returns uploaded metadata, dominant colors, detected categories, and public URLs.
+    """
+    uploads_dir = os.path.join(settings.STORAGE_DIR, "uploads")
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    results = []
+    for file in files:
+        file_ext = os.path.splitext(file.filename)[1] or ".jpg"
+        unique_name = f"vision_{uuid.uuid4().hex[:10]}{file_ext}"
+        saved_path = os.path.join(uploads_dir, unique_name)
+        
+        contents = await file.read()
+        with open(saved_path, "wb") as f:
+            f.write(contents)
+            
+        analysis = vision_service.analyze_image_file(saved_path, original_filename=file.filename)
+        results.append(analysis)
+
+    return {
+        "status": "SUCCESS",
+        "uploaded_count": len(results),
+        "images": results
+    }
+
+@router.post("/synthesize-voice")
+async def synthesize_voice(
+    payload: VoiceSynthesisRequest
+):
+    """
+    Synthesizes speech on demand with natural Edge-TTS neural models.
+    Supports English, Tamil, Hindi, Telugu, and Malayalam.
+    """
+    tts = await speech_service.synthesize_speech(
+        text=payload.text,
+        language=payload.language or "en",
+        call_id=payload.call_id
+    )
+    return tts
+
 @router.post("/turn")
 async def process_call_turn(
-    call_id: str,
-    user_text: str,
-    language: Optional[str] = "auto",
+    request: Request,
+    call_id: Optional[str] = Query(None),
+    user_text: Optional[str] = Query(None),
+    language: Optional[str] = Query("auto"),
+    image_urls: Optional[List[str]] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Processes a conversational turn for the call.
-    Executes business workflows, grounded RAG, and sentiment analysis.
+    Accepts JSON body or query parameters.
+    Executes multimodal Vision AI (if images provided), business workflows, grounded RAG,
+    sentiment analysis, and neural speech synthesis.
     """
-    stmt = select(Call).where(Call.id == call_id)
-    res = await db.execute(stmt)
-    call = res.scalars().first()
+    body_data: Dict[str, Any] = {}
+    try:
+        body_data = await request.json()
+    except Exception:
+        body_data = {}
+
+    c_id = body_data.get("call_id") or call_id
+    text = body_data.get("user_text") or body_data.get("text") or user_text or ""
+    lang = body_data.get("language") or language or "auto"
+    imgs = body_data.get("image_urls") or image_urls or []
+
+    # Ensure call session exists, or auto-create one seamlessly
+    call = None
+    if c_id:
+        stmt = select(Call).where(Call.id == c_id)
+        res = await db.execute(stmt)
+        call = res.scalars().first()
+
     if not call:
-        raise HTTPException(status_code=404, detail="Call session not found")
+        c_id = c_id or str(uuid.uuid4())
+        initial_lang = lang if lang != "auto" else "en"
+        greeting = ai_engine.LANGUAGE_GREETINGS.get(initial_lang, ai_engine.LANGUAGE_GREETINGS["en"])
+        call = Call(
+            id=c_id,
+            direction="INBOUND",
+            caller_number="+91-98401-00199",
+            receiver_number="+91-44-6789-0100",
+            status="IN_PROGRESS",
+            language=initial_lang,
+            detected_languages=[initial_lang],
+            start_time=datetime.utcnow(),
+            transcript=[{
+                "speaker": "ai",
+                "text": greeting,
+                "timestamp": datetime.utcnow().isoformat(),
+                "language": initial_lang
+            }]
+        )
+        db.add(call)
+        await db.commit()
+        await db.refresh(call)
 
     result = await orchestrator.process_user_turn(
         db=db,
-        call_id=call_id,
-        user_text=user_text,
-        forced_language=language
+        call_id=c_id,
+        user_text=text,
+        forced_language=lang,
+        image_urls=imgs
     )
 
     # If AI requested handoff, create transfer ticket
@@ -110,10 +207,10 @@ async def process_call_turn(
     if result.get("trigger_handoff"):
         handoff_ticket = await human_handoff_service.create_handoff_request(
             db=db,
-            call_id=call_id,
+            call_id=c_id,
             reason=result.get("handoff_reason", "Caller needs human specialist"),
-            ai_summary=f"Caller asked: '{user_text}'. Transferred for specialized human support.",
-            context_notes={"last_query": user_text, "language": result.get("language", "en")},
+            ai_summary=f"Caller asked: '{text}'. Transferred for specialized human support.",
+            context_notes={"last_query": text, "language": result.get("language", "en")},
             target_department="Customer Support"
         )
         call.status = "TRANSFERRED"
@@ -121,7 +218,7 @@ async def process_call_turn(
         await db.commit()
 
     return {
-        "call_id": call_id,
+        "call_id": c_id,
         "reply_text": result["reply_text"],
         "language": result["language"],
         "intent": result["intent"],
