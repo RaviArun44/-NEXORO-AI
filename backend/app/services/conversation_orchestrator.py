@@ -1,3 +1,4 @@
+import os
 import asyncio
 import logging
 from datetime import datetime
@@ -5,6 +6,7 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.models.customer import Customer
 from app.models.call import Call
 from app.models.knowledge import KnowledgeDoc, KnowledgeChunk
@@ -12,6 +14,7 @@ from app.services.ai_engine import ai_engine
 from app.services.rag_engine import rag_engine
 from app.services.language_detector import language_detector
 from app.services.speech_service import speech_service
+from app.services.vision_service import vision_service
 from app.services.workflow_engine import workflow_engine, WorkflowResult
 from app.services.call_queue_manager import call_queue_manager
 
@@ -100,15 +103,17 @@ class ConversationOrchestrator:
         db: AsyncSession,
         call_id: str,
         user_text: str,
-        forced_language: Optional[str] = None
+        forced_language: Optional[str] = None,
+        image_urls: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Executes a complete voice conversational turn:
         1. Rate limit check & session validation
         2. Automatic Language Detection & Contextual Switching
-        3. Business Workflow Execution (Order tracking, Complaints, Appointments, Products, Urgency, Wrap-up)
-        4. Knowledge Base RAG Retrieval & Strict Anti-Hallucination Grounding
-        5. Speech Synthesis & Audio Metadata Generation
+        3. Multimodal Vision AI Image Processing (when images are attached)
+        4. Business Workflow Execution (Order tracking, Complaints, Appointments, Products, Urgency, Wrap-up)
+        5. Knowledge Base RAG Retrieval & Strict Anti-Hallucination Grounding
+        6. Speech Synthesis & Audio Metadata Generation
         """
         session = self.active_sessions.get(call_id)
         if not session:
@@ -129,12 +134,13 @@ class ConversationOrchestrator:
         if current_lang not in session.detected_languages:
             session.detected_languages.append(current_lang)
 
-        # Record customer utterance
+        # Record customer utterance (including images if attached)
         customer_turn = {
             "speaker": "customer",
             "text": user_text,
             "timestamp": datetime.utcnow().isoformat(),
-            "language": current_lang
+            "language": current_lang,
+            "images": image_urls or []
         }
         session.turns.append(customer_turn)
 
@@ -144,62 +150,111 @@ class ConversationOrchestrator:
             c_res = await db.execute(select(Customer).where(Customer.id == session.customer_id))
             customer = c_res.scalars().first()
 
-        # 2. Check Autonomous Business Workflows First
-        workflow_res: Optional[WorkflowResult] = await workflow_engine.execute(
-            db=db,
-            user_text=user_text,
-            language=current_lang,
-            session_id=call_id,
-            customer=customer,
-            context_turns=session.turns
-        )
+        # 2. Multimodal Vision AI Pipeline (if images are attached)
+        if image_urls and len(image_urls) > 0:
+            images_info = []
+            uploads_dir = os.path.join(settings.STORAGE_DIR, "uploads")
+            for img_ref in image_urls:
+                # Handle /storage/uploads/filename or raw filename or absolute path
+                if "/storage/uploads/" in img_ref:
+                    fname = img_ref.split("/storage/uploads/")[-1]
+                    fpath = os.path.join(uploads_dir, fname)
+                elif os.path.isabs(img_ref) and os.path.exists(img_ref):
+                    fpath = img_ref
+                    fname = os.path.basename(img_ref)
+                else:
+                    fname = os.path.basename(img_ref)
+                    fpath = os.path.join(uploads_dir, fname)
 
-        if workflow_res and workflow_res.handled:
-            reply_text = workflow_res.reply_text
-            intent = workflow_res.intent
-            grounded = workflow_res.grounded
-            sources = workflow_res.sources
-            trigger_handoff = workflow_res.trigger_handoff
-            handoff_reason = workflow_res.handoff_reason
-            session.is_terminal = workflow_res.is_terminal
-        else:
-            # 3. Fallback to Grounded RAG Knowledge Base
-            grounded_context = []
-            c_stmt = select(KnowledgeChunk, KnowledgeDoc).join(KnowledgeDoc, KnowledgeChunk.doc_id == KnowledgeDoc.id)
-            c_res = await db.execute(c_stmt)
-            all_chunks = []
-            for ch, doc in c_res.all():
-                all_chunks.append({
-                    "id": ch.id,
-                    "doc_id": ch.doc_id,
-                    "doc_title": doc.title,
-                    "category": doc.doc_category,
-                    "content": ch.content,
-                    "embedding": ch.embedding
-                })
+                if os.path.exists(fpath):
+                    info = vision_service.analyze_image_file(fpath, original_filename=fname)
+                    images_info.append(info)
+                else:
+                    images_info.append({
+                        "filename": fname,
+                        "file_path": fpath,
+                        "file_url": f"/storage/uploads/{fname}",
+                        "detected_category": "Image",
+                        "visual_features": ["Uploaded image file"],
+                        "dominant_colors": ["Neutral"]
+                    })
 
-            if all_chunks:
-                grounded_context = rag_engine.search_relevant_chunks(
-                    query=user_text,
-                    chunks=all_chunks,
-                    top_k=2,
-                    threshold=0.35
-                )
-
-            # Generate response via AI Engine
-            ai_result = await ai_engine.generate_response(
-                customer_query=user_text,
-                conversation_history=[{"role": t["speaker"], "content": t["text"]} for t in session.turns[-4:]],
-                grounded_context=grounded_context,
-                forced_language=current_lang
+            vision_res = await vision_service.generate_image_answer(
+                images_info=images_info,
+                user_query=user_text,
+                language=current_lang,
+                conversation_history=session.turns
             )
-            reply_text = ai_result["text"]
-            intent = ai_result["intent"]
-            grounded = ai_result["grounded"]
-            sources = ai_result.get("sources", [])
-            trigger_handoff = ai_result.get("trigger_handoff", False)
-            handoff_reason = ai_result.get("handoff_reason", None)
-            session.sentiment = ai_result.get("sentiment", "NEUTRAL")
+            reply_text = vision_res["reply_text"]
+            intent = "IMAGE_ANALYSIS"
+            grounded = True
+            sources = vision_res.get("sources", [f"Vision AI Engine ({len(images_info)} images)"])
+            trigger_handoff = False
+            handoff_reason = None
+        else:
+            # 3. Check Autonomous Business Workflows First
+            workflow_res: Optional[WorkflowResult] = await workflow_engine.execute(
+                db=db,
+                user_text=user_text,
+                language=current_lang,
+                session_id=call_id,
+                customer=customer,
+                context_turns=session.turns
+            )
+
+            if workflow_res and workflow_res.handled:
+                reply_text = workflow_res.reply_text
+                intent = workflow_res.intent
+                grounded = workflow_res.grounded
+                sources = workflow_res.sources
+                trigger_handoff = workflow_res.trigger_handoff
+                handoff_reason = workflow_res.handoff_reason
+                session.is_terminal = workflow_res.is_terminal
+            else:
+                # 4. Fallback to Grounded RAG Knowledge Base
+                grounded_context = []
+                c_stmt = select(KnowledgeChunk, KnowledgeDoc).join(KnowledgeDoc, KnowledgeChunk.doc_id == KnowledgeDoc.id)
+                c_res = await db.execute(c_stmt)
+                all_chunks = []
+                for ch, doc in c_res.all():
+                    all_chunks.append({
+                        "id": ch.id,
+                        "doc_id": ch.doc_id,
+                        "doc_title": doc.title,
+                        "category": doc.doc_category,
+                        "content": ch.content,
+                        "embedding": ch.embedding
+                    })
+
+                if all_chunks:
+                    grounded_context = rag_engine.search_relevant_chunks(
+                        query=user_text,
+                        chunks=all_chunks,
+                        top_k=2,
+                        threshold=0.35
+                    )
+
+                # Generate response via AI Engine
+                ai_result = await ai_engine.generate_response(
+                    customer_query=user_text,
+                    conversation_history=[{"role": t["speaker"], "content": t["text"]} for t in session.turns[-4:]],
+                    grounded_context=grounded_context,
+                    forced_language=current_lang
+                )
+                reply_text = ai_result["text"]
+                intent = ai_result["intent"]
+                grounded = ai_result["grounded"]
+                sources = ai_result.get("sources", [])
+                trigger_handoff = ai_result.get("trigger_handoff", False)
+                handoff_reason = ai_result.get("handoff_reason", None)
+                session.sentiment = ai_result.get("sentiment", "NEUTRAL")
+
+        # 5. Synthesize Neural Voice audio
+        tts_data = await speech_service.synthesize_speech(
+            text=reply_text,
+            language=current_lang,
+            call_id=call_id
+        )
 
         # Record AI utterance
         ai_turn = {
@@ -208,16 +263,19 @@ class ConversationOrchestrator:
             "timestamp": datetime.utcnow().isoformat(),
             "language": current_lang,
             "grounded": grounded,
-            "sources": sources
+            "sources": sources,
+            "audio_url": tts_data.get("audio_url")
         }
         session.turns.append(ai_turn)
 
-        # 4. Synthesize Neural Voice audio
-        tts_data = await speech_service.synthesize_speech(
-            text=reply_text,
-            language=current_lang,
-            call_id=call_id
-        )
+        # Update Call record in DB
+        stmt = select(Call).where(Call.id == call_id)
+        call_obj_res = await db.execute(stmt)
+        call_obj = call_obj_res.scalars().first()
+        if call_obj:
+            call_obj.transcript = session.turns
+            call_obj.language = current_lang
+            await db.commit()
 
         return {
             "call_id": call_id,

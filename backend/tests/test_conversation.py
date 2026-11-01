@@ -40,3 +40,37 @@ async def test_unknown_question_refusal_and_handoff():
     assert res["trigger_handoff"] is True
     assert "specialist" in res["text"].lower() or "apologize" in res["text"].lower()
 
+@pytest.mark.asyncio
+async def test_multilingual_tamil_order_grounding():
+    order_data = {
+        "order": {
+            "order_number": "ORD-998822",
+            "status": "SHIPPED",
+            "tracking_number": "BLUEDART-88219",
+            "courier_name": "BlueDart Express"
+        }
+    }
+    res = await ai_engine.generate_response(
+        customer_query="என்னுடைய ஆர்டர் ORD-998822 எப்போது கிடைக்கும்?",
+        conversation_history=[],
+        grounded_context=[],
+        business_data=order_data,
+        forced_language="ta"
+    )
+    assert res["grounded"] is True
+    assert "ORD-998822" in res["text"]
+    assert "SHIPPED" in res["text"]
+    assert res["language"] == "ta"
+
+@pytest.mark.asyncio
+async def test_human_handoff_explicit_intent():
+    res = await ai_engine.generate_response(
+        customer_query="I need to talk to a human agent right now",
+        conversation_history=[],
+        grounded_context=[],
+        business_data=None,
+        forced_language="en"
+    )
+    assert res["intent"] == "HUMAN_HANDOFF"
+    assert res["trigger_handoff"] is True
+

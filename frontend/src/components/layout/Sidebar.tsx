@@ -6,7 +6,17 @@ import {
   ShoppingCart,
   Headphones,
   BookOpen,
-  LogOut
+  LogOut,
+  Users,
+  Package,
+  Calendar,
+  AlertOctagon,
+  Megaphone,
+  Cpu,
+  BarChart3,
+  Shield,
+  Settings,
+  ShoppingBag
 } from 'lucide-react';
 import { NexoraAvatar } from './NexoraAvatar';
 import { useAuth } from '../../context/AuthContext';
@@ -17,16 +27,41 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) => {
-  const { user, logout, pendingHandoffsCount } = useAuth();
+  const { user, logout, pendingHandoffsCount, setPortalMode } = useAuth();
 
-  // Core business operations modules for KAIRA Technologies
-  const navItems = [
-    { id: 'dashboard', label: 'Call Monitoring & Dashboard', icon: LayoutDashboard },
-    { id: 'live-calls', label: 'Live Voice Receptionist', icon: PhoneCall, badge: 'Live' },
-    { id: 'calls', label: 'Call Records & Transcripts', icon: History },
-    { id: 'orders', label: 'Order Tracking', icon: ShoppingCart },
-    { id: 'handoff', label: 'Human Handoff Desk', icon: Headphones, count: pendingHandoffsCount },
-    { id: 'knowledge', label: 'Company Knowledge Base', icon: BookOpen },
+  // Enterprise Voice Platform Navigation Categories
+  const navGroups = [
+    {
+      title: 'Voice Operations',
+      items: [
+        { id: 'dashboard', label: 'Call Monitoring & KPIs', icon: LayoutDashboard },
+        { id: 'ai-calling', label: 'AI Voice Calling', icon: PhoneCall, badge: '5-Lang' },
+        { id: 'live-calls', label: 'AI Voice Receptionist', icon: PhoneCall, badge: 'Live' },
+        { id: 'calls', label: 'Call History & Logs', icon: History },
+        { id: 'handoff', label: 'Human Handoff Desk', icon: Headphones, count: pendingHandoffsCount },
+      ]
+    },
+    {
+      title: 'Business Automation',
+      items: [
+        { id: 'customers', label: 'Customer CRM', icon: Users },
+        { id: 'orders', label: 'Order Fulfillment', icon: ShoppingCart },
+        { id: 'products', label: 'Product Inventory', icon: Package },
+        { id: 'appointments', label: 'Appointments Desk', icon: Calendar },
+        { id: 'complaints', label: 'Complaints & Tickets', icon: AlertOctagon },
+        { id: 'campaigns', label: 'Outbound Voice Campaigns', icon: Megaphone },
+      ]
+    },
+    {
+      title: 'Intelligence & Admin',
+      items: [
+        { id: 'knowledge', label: 'Company Knowledge RAG', icon: BookOpen },
+        { id: 'ai-config', label: 'AI Voice & Persona Config', icon: Cpu },
+        { id: 'analytics', label: 'Reports & Analytics', icon: BarChart3 },
+        { id: 'employees', label: 'Staff Roster & Routing', icon: Shield },
+        { id: 'settings', label: 'Company & SIP Settings', icon: Settings },
+      ]
+    }
   ];
 
   return (
@@ -48,58 +83,83 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
             <div>
               <div className="flex items-center space-x-1.5">
                 <span className="font-bold text-base tracking-tight bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  NEXORA AI
+                  Khaira Voice AI
                 </span>
                 <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
-                  v1.0
+                  v2.0
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 font-medium">Virtual Receptionist Platform</p>
+              <p className="text-[10px] text-slate-400 font-medium">Enterprise Multilingual Platform</p>
             </div>
           </div>
         </div>
       </div>
 
+      
 
+      {/* Customer Storefront Live Switch Button */}
+      <div className="p-3 pb-1">
+        <button
+          onClick={() => setPortalMode('customer')}
+          className="w-full flex items-center justify-between px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-xs shadow-emerald-500/20 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center space-x-2">
+            <ShoppingBag className="w-4 h-4 text-emerald-100 group-hover:scale-110 transition-transform" />
+            <span>Customer Storefront</span>
+          </div>
+          <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full font-mono uppercase">
+            Live
+          </span>
+        </button>
+      </div>
 
-      {/* Essential Navigation Links */}
-      <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setCurrentTab(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${isActive
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                <span className="truncate">{item.label}</span>
-              </div>
-
-              {item.badge && (
-                <span
-                  className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${isActive
-                      ? 'bg-white/20 text-white'
-                      : 'bg-emerald-100 text-emerald-700 animate-pulse'
-                    }`}
+      {/* Categorized Enterprise Navigation Links */}
+      <nav className="flex-1 overflow-y-auto p-3 space-y-4">
+        {navGroups.map((group) => (
+          <div key={group.title} className="space-y-1">
+            <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              {group.title}
+            </p>
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setCurrentTab(item.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
                 >
-                  {item.badge}
-                </span>
-              )}
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                    <span className="truncate">{item.label}</span>
+                  </div>
 
-              {item.count !== undefined && item.count > 0 && (
-                <span className="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-bold animate-bounce">
-                  {item.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+                  {item.badge && (
+                    <span
+                      className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : 'bg-emerald-100 text-emerald-700 animate-pulse'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+
+                  {item.count !== undefined && item.count > 0 && (
+                    <span className="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-bold animate-bounce shrink-0">
+                      {item.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* KAIRA Technologies Footer Credit */}

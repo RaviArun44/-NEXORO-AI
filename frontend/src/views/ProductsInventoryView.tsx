@@ -119,8 +119,10 @@ export const ProductsInventoryView: React.FC = () => {
                 </tr>
               ) : (
                 products.map((p) => {
-                  const isLow = p.stock_quantity <= p.reorder_level && p.stock_quantity > 0;
-                  const isOut = p.stock_quantity === 0;
+                  const qty = p.stock_quantity ?? 0;
+                  const reorder = p.reorder_level ?? 10;
+                  const isLow = qty <= reorder && qty > 0;
+                  const isOut = qty === 0;
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-blue-700">{p.sku}</td>

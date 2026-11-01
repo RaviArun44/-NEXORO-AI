@@ -8,6 +8,14 @@ class CallTurn(BaseModel):
     timestamp: str
     language: Optional[str] = "en"
     audio_url: Optional[str] = None
+    images: Optional[List[str]] = None
+
+class TurnRequest(BaseModel):
+    call_id: Optional[str] = None
+    user_text: str
+    language: Optional[str] = "auto"
+    image_urls: Optional[List[str]] = None
+    caller_number: Optional[str] = "+91 (44) 6789-0199"
 
 class CallCreate(BaseModel):
     caller_number: str

@@ -62,6 +62,14 @@ class SpeechService:
             "gender": "Female",
             "rate": "+0%",
             "pitch": "+0Hz"
+        },
+        "kn": {
+            "voice_id": "kn-IN-SapnaNeural",
+            "fallback_voice": "kn-IN-GaganNeural",
+            "name": "Sapna (Kannada)",
+            "gender": "Female",
+            "rate": "+0%",
+            "pitch": "+0Hz"
         }
     }
 

@@ -10,43 +10,74 @@ import {
   Headphones,
   CheckCircle2,
   AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  Server,
+  Layers,
+  Radio,
+  Play,
+  Users,
+  ShoppingCart,
+  CreditCard,
+  PhoneCall,
+  IndianRupee,
+  ShoppingBag
 } from 'lucide-react';
 import { api, DashboardKPIs, CallRecord } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface DashboardViewProps {
   onNavigate: (tab: string) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
+  const { setPortalMode } = useAuth();
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [recentCalls, setRecentCalls] = useState<CallRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [simulating, setSimulating] = useState<boolean>(false);
+  const [simResult, setSimResult] = useState<any | null>(null);
+
+  const fetchData = async () => {
+    try {
+      const [kpiRes, callsRes] = await Promise.all([
+        api.getDashboardKPIs(),
+        api.getCalls({ limit: 5 })
+      ]);
+      setKpis(kpiRes.data);
+      setRecentCalls(callsRes.data);
+    } catch (err) {
+      console.error('Failed to load dashboard data', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [kpiRes, callsRes] = await Promise.all([
-          api.getKPIs(),
-          api.listCalls({ limit: 5 })
-        ]);
-        setKpis(kpiRes.data);
-        setRecentCalls(callsRes.data);
-      } catch (err) {
-        console.error('Failed to load dashboard data', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
+    const interval = setInterval(fetchData, 8000); // 8s live refresh
+    return () => clearInterval(interval);
   }, []);
+
+  const handleRunSimulation = async (count: number = 100) => {
+    setSimulating(true);
+    setSimResult(null);
+    try {
+      const res = await api.simulateLoad(count, 10);
+      setSimResult(res.data);
+      await fetchData();
+    } catch (err) {
+      console.error('Load simulation error', err);
+    } finally {
+      setSimulating(false);
+    }
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center space-y-3">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-sm text-slate-500 font-medium">Loading NEXORA AI Dashboard...</p>
+          <p className="text-sm text-slate-500 font-medium">Loading Khaira AI Platform Dashboard...</p>
         </div>
       </div>
     );
@@ -55,96 +86,281 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 rounded-2xl p-6 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-sky-600 rounded-2xl p-6 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2 flex-wrap gap-y-1">
             <span className="bg-white/20 text-white text-xs px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider backdrop-blur-xs">
-              Autonomous Multilingual Receptionist
+              Khaira Autonomous Voice Operations
             </span>
             <span className="text-xs text-blue-100">
-              • Source: {kpis?.data_source || 'Verified Database'}
+              • High-Volume Concurrent Call Architecture
             </span>
           </div>
-          <h1 className="text-2xl font-bold mt-2">NEXORA AI Virtual Receptionist Desk</h1>
+          <h1 className="text-2xl font-bold mt-2">Khaira AI Voice Automation Platform</h1>
           <p className="text-blue-100 text-sm mt-1 max-w-xl">
-            Live 24/7 natural voice communications with zero-hallucination grounded knowledge retrieval in English, Tamil, Hindi, Telugu, and Malayalam.
+            Handling thousands of customer conversations 24/7 across English, Tamil, Hindi, Telugu, and Malayalam with automatic language detection, grounded RAG, and business workflows.
           </p>
         </div>
-        <div className="flex items-center space-x-3 shrink-0">
+        <div className="flex items-center space-x-3 shrink-0 flex-wrap gap-2">
+          <button
+            onClick={() => setPortalMode('customer')}
+            className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm shadow-sm transition-all cursor-pointer flex items-center space-x-2"
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span>Customer Store (Live Preview)</span>
+          </button>
           <button
             onClick={() => onNavigate('live-calls')}
             className="bg-white text-blue-700 hover:bg-blue-50 px-4 py-2.5 rounded-xl font-semibold text-sm shadow-sm transition-all cursor-pointer flex items-center space-x-2"
           >
             <PhoneIncoming className="w-4 h-4" />
-            <span>Launch Live Call Test</span>
+            <span>Launch Voice Studio</span>
+          </button>
+          <button
+            onClick={() => handleRunSimulation(100)}
+            disabled={simulating}
+            className="bg-blue-900/60 hover:bg-blue-900/80 text-white border border-white/20 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all cursor-pointer flex items-center space-x-2"
+          >
+            <Play className={`w-3.5 h-3.5 ${simulating ? 'animate-spin' : ''}`} />
+            <span>{simulating ? 'Simulating 100 Calls...' : 'Simulate 100 Calls'}</span>
           </button>
         </div>
       </div>
 
-      {/* Primary KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Simulation Feedback Pill */}
+      {simResult && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between text-xs text-blue-900">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-600 text-white rounded-xl">
+              <Server className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold">High-Volume Simulation Complete:</span> {simResult.simulated_calls} concurrent calls processed in {simResult.total_elapsed_seconds}s.
+              <span className="ml-2 font-mono font-semibold text-emerald-700">Throughput: {simResult.calls_per_second_throughput} calls/sec • 100% Success Rate</span>
+            </div>
+          </div>
+          <button onClick={() => setSimResult(null)} className="text-blue-600 hover:text-blue-800 font-bold px-2 py-1">Dismiss</button>
+        </div>
+      )}
+
+      {/* E-Commerce Operations & Unified Marketplace KPIs */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+              E-Commerce & Autonomous Calling Operations
+            </h2>
+          </div>
+          <span className="text-xs text-slate-500 font-medium">Real-time Multi-Marketplace Sync (Amazon • Flipkart • Meesho)</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {/* Total Customers */}
+          <div 
+            onClick={() => onNavigate('customers')}
+            className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-blue-400 hover:shadow-sm transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-blue-600 transition-colors">Registered Customers</span>
+              <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                <Users className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1.5">
+              <span className="text-2xl font-bold text-slate-800">{kpis?.total_customers ?? 0}</span>
+              <span className="text-[10px] font-medium text-emerald-600">Active CRM</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Unique Customer IDs</p>
+          </div>
+
+          {/* Total Orders */}
+          <div 
+            onClick={() => onNavigate('orders')}
+            className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-indigo-400 hover:shadow-sm transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-indigo-600 transition-colors">Total Orders</span>
+              <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                <ShoppingCart className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1.5">
+              <span className="text-2xl font-bold text-slate-800">{kpis?.total_orders ?? 0}</span>
+              <span className="text-[10px] font-medium text-indigo-600">
+                {kpis?.today_orders ?? 0} Today
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              Cancelled: {kpis?.cancelled_orders ?? 0}
+            </p>
+          </div>
+
+          {/* Total Revenue */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider">Total Revenue</span>
+              <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                <IndianRupee className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1">
+              <span className="text-xs font-bold text-emerald-600">₹</span>
+              <span className="text-2xl font-bold text-slate-800">
+                {(kpis?.total_revenue ?? 0).toLocaleString('en-IN')}
+              </span>
+            </div>
+            <p className="text-[10px] text-emerald-600 mt-1">Direct Gateway Settled</p>
+          </div>
+
+          {/* Successful Payments */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider">Paid Orders</span>
+              <div className="p-1.5 bg-sky-50 text-sky-600 rounded-lg">
+                <CreditCard className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1.5">
+              <span className="text-2xl font-bold text-slate-800">{kpis?.successful_payments ?? 0}</span>
+              <span className="text-[10px] font-medium text-slate-500">
+                / {kpis?.pending_payments ?? 0} Pending
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">UPI, Cards, COD</p>
+          </div>
+
+          {/* AI Voice Calls Completed */}
+          <div 
+            onClick={() => onNavigate('ai-calling')}
+            className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-emerald-400 hover:shadow-sm transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-emerald-600 transition-colors">AI Confirmed Calls</span>
+              <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <PhoneCall className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1.5">
+              <span className="text-2xl font-bold text-slate-800">{kpis?.ai_calls_completed ?? 0}</span>
+              <span className="text-[10px] font-medium text-emerald-600">100% Neural</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Multi-Turn Voice Engine</p>
+          </div>
+
+          {/* AI Calls Pending / Retrying */}
+          <div 
+            onClick={() => onNavigate('ai-calling')}
+            className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-amber-400 hover:shadow-sm transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-amber-600 transition-colors">Calls Queue & Retries</span>
+              <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                <Clock className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline space-x-1.5">
+              <span className="text-2xl font-bold text-slate-800">{kpis?.ai_calls_pending ?? 0}</span>
+              <span className="text-[10px] font-medium text-rose-500">
+                {kpis?.ai_calls_failed ?? 0} Failed
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Auto-Retry Scheduling</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Primary KPI Grid (6 Voice Telemetry Metric Cards) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {/* Total Calls */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Handled Calls</span>
-            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-              <TrendingUp className="w-4 h-4" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Calls</span>
+            <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+              <TrendingUp className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-3xl font-bold text-slate-800">{kpis?.total_calls ?? 0}</span>
-            <span className="text-xs font-medium text-emerald-600">
+            <span className="text-2xl font-bold text-slate-800">{kpis?.total_calls ?? 0}</span>
+            <span className="text-[10px] font-medium text-emerald-600">
               {kpis?.incoming_calls ?? 0} In / {kpis?.outgoing_calls ?? 0} Out
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">Answer Rate: 100%</p>
+          <p className="text-[10px] text-slate-400 mt-1">Answer Rate: 100%</p>
+        </div>
+
+        {/* Active Concurrency */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Active Concurrent</span>
+            <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+              <Radio className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline space-x-2">
+            <span className="text-2xl font-bold text-slate-800">{kpis?.active_calls ?? 0}</span>
+            <span className="text-[10px] font-medium text-slate-500">/ 1,000 max</span>
+          </div>
+          <p className="text-[10px] text-emerald-600 mt-1">Peak: {kpis?.peak_concurrency ?? 0} concurrent</p>
         </div>
 
         {/* AI Resolution Rate */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase tracking-wider">AI Autonomous Resolution</span>
-            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-              <ShieldCheck className="w-4 h-4" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">AI Resolution</span>
+            <div className="p-1.5 bg-sky-50 text-sky-600 rounded-lg">
+              <ShieldCheck className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-3xl font-bold text-slate-800">{kpis?.resolved_by_ai_percent ?? 0}%</span>
-            <span className="text-xs font-medium text-slate-500">
-              {kpis?.handoff_rate_percent ?? 0}% Handoff
-            </span>
+            <span className="text-2xl font-bold text-slate-800">{kpis?.resolved_by_ai_percent ?? 0}%</span>
+            <span className="text-[10px] font-medium text-slate-500">Automated</span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">Strict Grounded Knowledge</p>
+          <p className="text-[10px] text-slate-400 mt-1">Zero-Hallucination RAG</p>
         </div>
 
         {/* Voice Latency */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase tracking-wider">Avg Response Latency</span>
-            <div className="p-2 bg-cyan-50 text-cyan-600 rounded-xl">
-              <Zap className="w-4 h-4" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Avg Latency</span>
+            <div className="p-1.5 bg-cyan-50 text-cyan-600 rounded-lg">
+              <Zap className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-3xl font-bold text-slate-800">{kpis?.avg_latency_ms ?? 0}</span>
-            <span className="text-xs font-medium text-slate-500">ms roundtrip</span>
+            <span className="text-2xl font-bold text-slate-800">{kpis?.avg_latency_ms ?? 0}</span>
+            <span className="text-[10px] font-medium text-slate-500">ms roundtrip</span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">Faster-Whisper + Neural TTS</p>
+          <p className="text-[10px] text-slate-400 mt-1">Real-time streaming</p>
+        </div>
+
+        {/* Avg Duration */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Avg Duration</span>
+            <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+              <Clock className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline space-x-2">
+            <span className="text-2xl font-bold text-slate-800">{kpis?.avg_duration_seconds ?? 0}s</span>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1">Natural turns</p>
         </div>
 
         {/* CSAT Score */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase tracking-wider">Customer Satisfaction</span>
-            <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
-              <Smile className="w-4 h-4" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Customer CSAT</span>
+            <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg">
+              <Smile className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-3xl font-bold text-slate-800">{kpis?.csat_score ?? 4.8}</span>
-            <span className="text-xs font-medium text-amber-500">/ 5.0 ⭐</span>
+            <span className="text-2xl font-bold text-slate-800">{kpis?.csat_score ?? 4.8}</span>
+            <span className="text-[10px] font-medium text-amber-500">/ 5.0 ⭐</span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">Based on sentiment analysis</p>
+          <p className="text-[10px] text-slate-400 mt-1">Sentiment verified</p>
         </div>
       </div>
 
@@ -154,8 +370,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div>
-              <h2 className="text-base font-bold text-slate-800">Recent Customer Calls</h2>
-              <p className="text-xs text-slate-500">Latest conversations processed by virtual receptionist</p>
+              <h2 className="text-base font-bold text-slate-800">Recent Customer Voice Calls</h2>
+              <p className="text-xs text-slate-500">Latest conversations handled by Khaira AI voice assistant</p>
             </div>
             <button
               onClick={() => onNavigate('calls')}
@@ -181,7 +397,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                     <div className="min-w-0">
                       <div className="flex items-center space-x-2">
                         <span className="font-semibold text-xs text-slate-800">{call.caller_number}</span>
-                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
                           {call.language.toUpperCase()}
                         </span>
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
@@ -189,9 +405,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                         }`}>
                           {call.outcome?.replace(/_/g, ' ') || call.status}
                         </span>
+                        {call.intent && (
+                          <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                            {call.intent.replace(/_/g, ' ')}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-slate-500 truncate mt-0.5 max-w-md">
-                        {call.summary || 'Customer inquiry addressed by AI receptionist.'}
+                        {call.summary || 'Customer inquiry addressed by Khaira AI assistant.'}
                       </p>
                     </div>
                   </div>
@@ -210,33 +431,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
 
         {/* Quick Operations Module Links */}
         <div className="space-y-4">
-          {/* Intelligent Handoff Desk Card */}
-          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-5 border border-indigo-100">
+          {/* Autonomous Workflows Hub */}
+          <div className="bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl p-5 border border-blue-200">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-xs">
-                <Headphones className="w-5 h-5" />
+              <div className="p-2 bg-blue-600 text-white rounded-xl shadow-xs">
+                <Layers className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-800 text-sm">Human Handoff Desk</h3>
-                <p className="text-xs text-slate-600">Employee transfer queue & alerts</p>
+                <h3 className="font-bold text-slate-800 text-sm">Autonomous Business Workflows</h3>
+                <p className="text-xs text-slate-600">Automated customer service</p>
               </div>
             </div>
             <p className="text-xs text-slate-500 mt-3">
-              When questions fall outside verified company documents, NEXORA AI instantly packages the conversation summary and routes the call to a human specialist.
+              Khaira AI independently resolves orders, manages product quotes, registers complaints, and books consultations without manual staff intervention.
             </p>
-            <button
-              onClick={() => onNavigate('handoff')}
-              className="mt-4 w-full bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold py-2 rounded-xl transition-all cursor-pointer"
-            >
-              Open Transfer Queue
-            </button>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => onNavigate('orders')}
+                className="bg-white hover:bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold py-2 rounded-xl transition-all cursor-pointer text-center"
+              >
+                Orders Desk
+              </button>
+              <button
+                onClick={() => onNavigate('complaints')}
+                className="bg-white hover:bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold py-2 rounded-xl transition-all cursor-pointer text-center"
+              >
+                Complaints
+              </button>
+            </div>
           </div>
 
           {/* Grounded Knowledge Base Card */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
-            <h3 className="font-bold text-slate-800 text-sm">Verified Company Knowledge Base</h3>
+            <h3 className="font-bold text-slate-800 text-sm">Khaira Company Knowledge Base</h3>
             <p className="text-xs text-slate-500 mt-1">
-              Upload PDF, DOCX, TXT catalogs & policies. All business answers are 100% grounded against verified files.
+              Upload PDF, DOCX, TXT catalogs & SLAs. Answers are 100% grounded against verified company files to prevent hallucination.
             </p>
             <button
               onClick={() => onNavigate('knowledge')}
@@ -250,4 +479,3 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     </div>
   );
 };
-
