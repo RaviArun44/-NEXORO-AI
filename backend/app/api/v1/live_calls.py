@@ -11,12 +11,14 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
 from app.models.call import Call
+from app.models.customer import Customer
 from app.services.conversation_orchestrator import orchestrator
 from app.services.speech_service import speech_service
 from app.services.vision_service import vision_service
 from app.services.human_handoff_service import human_handoff_service
 from app.services.ai_engine import ai_engine
 from app.services.call_queue_manager import call_queue_manager
+from app.services.call_signaling import call_signaling
 from app.schemas.call import CallResponse, TurnRequest
 
 logger = logging.getLogger(__name__)
@@ -90,6 +92,153 @@ async def start_live_call(
         "tts": tts,
         "started_at": call.start_time.isoformat()
     }
+
+@router.post("/request-call")
+async def request_customer_call(
+    caller_number: str = "+91-98401-00199",
+    caller_name: str = "Valued Customer",
+    language: str = "en",
+    customer_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Called when a Customer clicks 'CALL AI AGENT'.
+    Creates a Call in REQUESTED status and rings all active AI Agent consoles in real-time.
+    """
+    if not call_queue_manager.check_rate_limit(caller_number):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please wait a moment before calling again."
+        )
+
+    # Find or link customer if available
+    if not customer_id:
+        cust_stmt = select(Customer).where(Customer.phone == caller_number)
+        cust_res = await db.execute(cust_stmt)
+        matched_cust = cust_res.scalars().first()
+        if matched_cust:
+            customer_id = matched_cust.id
+            caller_name = matched_cust.name
+
+    call = Call(
+        id=str(uuid.uuid4()),
+        direction="INBOUND",
+        caller_number=caller_number,
+        receiver_number="+91-44-6789-0100",
+        customer_id=customer_id,
+        status="REQUESTED",
+        language=language,
+        detected_languages=[language],
+        start_time=datetime.utcnow(),
+        transcript=[]
+    )
+    db.add(call)
+    await db.commit()
+    await db.refresh(call)
+
+    call_payload = {
+        "id": call.id,
+        "caller_name": caller_name,
+        "caller_number": call.caller_number,
+        "customer_id": customer_id,
+        "language": language,
+        "status": "REQUESTED",
+        "created_at": call.start_time.isoformat()
+    }
+
+    # Broadcast incoming ring event to all AI Agent Consoles
+    await call_signaling.notify_call_requested(call_payload)
+
+    return {
+        "call_id": call.id,
+        "status": "REQUESTED",
+        "caller_name": caller_name,
+        "caller_number": call.caller_number,
+        "language": language,
+        "started_at": call.start_time.isoformat()
+    }
+
+@router.get("/pending-requests")
+async def get_pending_call_requests():
+    """Returns currently ringing / requested calls for the Agent Console."""
+    return call_signaling.get_pending_calls()
+
+@router.post("/{call_id}/accept")
+async def accept_call_request(
+    call_id: str,
+    agent_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    AI Agent accepts the incoming call.
+    Transitions status to IN_PROGRESS, generates greeting, and notifies customer socket.
+    """
+    stmt = select(Call).where(Call.id == call_id)
+    res = await db.execute(stmt)
+    call = res.scalars().first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call session not found")
+
+    call.status = "IN_PROGRESS"
+    call.transferred_to_user_id = agent_id
+
+    language = call.language or "en"
+    greeting = ai_engine.LANGUAGE_GREETINGS.get(language, ai_engine.LANGUAGE_GREETINGS["en"])
+
+    call.transcript = [{
+        "speaker": "ai",
+        "text": greeting,
+        "timestamp": datetime.utcnow().isoformat(),
+        "language": language
+    }]
+    await db.commit()
+    await db.refresh(call)
+
+    # Initialize dialog state
+    session = await orchestrator.get_or_create_session(db, call.id, call.caller_number, call.direction)
+    session.language = language
+    session.turns = call.transcript
+
+    tts = await speech_service.synthesize_speech(greeting, language, call_id=call.id)
+
+    call_info = {
+        "id": call.id,
+        "status": "IN_PROGRESS",
+        "caller_number": call.caller_number,
+        "language": language,
+        "greeting": greeting,
+        "tts": tts,
+        "transcript": call.transcript
+    }
+
+    await call_signaling.notify_call_accepted(call_id, call_info)
+
+    return {
+        "status": "ACCEPTED",
+        "call_id": call.id,
+        "greeting_text": greeting,
+        "tts": tts,
+        "language": language
+    }
+
+@router.post("/{call_id}/reject")
+async def reject_call_request(
+    call_id: str,
+    reason: str = "Agent busy",
+    db: AsyncSession = Depends(get_db)
+):
+    """Rejects or cancels a requested call."""
+    stmt = select(Call).where(Call.id == call_id)
+    res = await db.execute(stmt)
+    call = res.scalars().first()
+    if call:
+        call.status = "REJECTED"
+        call.outcome = "REJECTED_BUSY"
+        call.end_time = datetime.utcnow()
+        await db.commit()
+
+    await call_signaling.notify_call_rejected(call_id, reason)
+    return {"status": "REJECTED", "call_id": call_id, "reason": reason}
 
 @router.post("/upload-images")
 async def upload_images(
@@ -217,6 +366,16 @@ async def process_call_turn(
         call.outcome = "HANDOFF_TO_HUMAN"
         await db.commit()
 
+    # Broadcast turn update to Agent Console & monitoring
+    await call_signaling.notify_transcript_turn(c_id, {
+        "speaker": "ai",
+        "user_query": text,
+        "reply_text": result["reply_text"],
+        "language": result["language"],
+        "sentiment": result.get("sentiment", "NEUTRAL"),
+        "transcript": result["turn_history"]
+    })
+
     return {
         "call_id": c_id,
         "reply_text": result["reply_text"],
@@ -286,7 +445,8 @@ async def end_live_call(
     call_queue_manager.release_concurrency_slot()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
-    return {
+
+    end_data = {
         "call_id": call.id,
         "status": call.status,
         "duration_seconds": call.duration_seconds,
@@ -294,12 +454,38 @@ async def end_live_call(
         "outcome": call.outcome
     }
 
+    await call_signaling.notify_call_ended(call_id, end_data)
+    return end_data
+
+@router.websocket("/ws/agent-console")
+async def agent_console_websocket(websocket: WebSocket):
+    """
+    WebSocket endpoint for the real-time AI Agent Operator Console.
+    Receives incoming call rings, accepted calls, and live transcript turns.
+    """
+    await websocket.accept()
+    call_signaling.register_agent(websocket)
+    logger.info("Agent Console connected to live dispatch websocket.")
+    try:
+        while True:
+            data = await websocket.receive_json()
+            event = data.get("event")
+            if event == "ping":
+                await websocket.send_json({"event": "pong"})
+    except WebSocketDisconnect:
+        logger.info("Agent Console disconnected from websocket.")
+    except Exception as e:
+        logger.warning(f"Error in Agent Console websocket: {e}")
+    finally:
+        call_signaling.unregister_agent(websocket)
+
 @router.websocket("/ws/{call_id}")
 async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
     """
     Bidirectional WebSocket stream for real-time audio/text conversations and interruptions.
     """
     await websocket.accept()
+    call_signaling.register_call_socket(call_id, websocket)
     logger.info(f"WebSocket client connected for call {call_id}")
 
     try:
@@ -350,3 +536,5 @@ async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
             await websocket.close()
         except Exception:
             pass
+    finally:
+        call_signaling.unregister_call_socket(call_id, websocket)

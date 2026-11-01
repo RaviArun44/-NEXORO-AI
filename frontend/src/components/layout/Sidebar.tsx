@@ -16,7 +16,8 @@ import {
   BarChart3,
   Shield,
   Settings,
-  ShoppingBag
+  ShoppingBag,
+  User
 } from 'lucide-react';
 import { NexoraAvatar } from './NexoraAvatar';
 import { useAuth } from '../../context/AuthContext';
@@ -35,6 +36,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
       title: 'Voice Operations',
       items: [
         { id: 'dashboard', label: 'Call Monitoring & KPIs', icon: LayoutDashboard },
+        { id: 'agent-console', label: 'Agent Operator Console', icon: Headphones, badge: '2-Way' },
+        { id: 'customer-portal', label: 'Customer Voice Portal', icon: User, badge: '2-Way' },
         { id: 'ai-calling', label: 'AI Voice Calling', icon: PhoneCall, badge: '5-Lang' },
         { id: 'live-calls', label: 'AI Voice Receptionist', icon: PhoneCall, badge: 'Live' },
         { id: 'calls', label: 'Call History & Logs', icon: History },

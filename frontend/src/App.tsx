@@ -20,7 +20,9 @@ import { AIConfigView } from './views/AIConfigView';
 import { AuthView } from './views/AuthView';
 import { CustomerStoreView } from './views/CustomerStoreView';
 import { AICallingManagementView } from './views/AICallingManagementView';
-import { Bell, AlertCircle, X, Headphones } from 'lucide-react';
+import { AgentConsoleView } from './views/AgentConsoleView';
+import { CustomerDashboardView } from './views/CustomerDashboardView';
+import { Bell, AlertCircle, X, Headphones, Eye, RotateCcw } from 'lucide-react';
 
 const MainApp: React.FC = () => {
   const { user, token, loading, setPendingHandoffsCount, portalMode, setPortalMode } = useAuth();
@@ -125,6 +127,10 @@ const MainApp: React.FC = () => {
         return <SettingsView />;
       case 'ai-config':
         return <AIConfigView />;
+      case 'agent-console':
+        return <AgentConsoleView />;
+      case 'customer-portal':
+        return <CustomerDashboardView />;
       default:
         return <DashboardView onNavigate={(tab) => setCurrentTab(tab)} />;
     }
