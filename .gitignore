@@ -20,6 +20,7 @@ backend/data_storage/recordings/*
 !data_storage/recordings/.gitkeep
 .pytest_cache/
 .env
+scratch/
 
 # Node
 frontend/node_modules/
@@ -27,4 +28,3 @@ frontend/dist/
 frontend/.oxlintrc.json
 .DS_Store
 Thumbs.db
-
