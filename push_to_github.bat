@@ -5,12 +5,15 @@ cd /d "%~dp0"
 set "PATH=C:\Users\dell\minigit\cmd;C:\Users\dell\minigit\mingw64\bin;%PATH%"
 
 echo ====================================================================
-echo   KHAIRO AI / NEXORO AI - PUSH TO GITHUB
+echo   NEXORO AI - PUSH TO GITHUB
 echo   Repository: https://github.com/RaviArun44/-NEXORO-AI.git
 echo   Branch:     main
 echo ====================================================================
 echo.
 
+git status
+git add -A
+git commit -m "feat: complete project integration and Android compatibility" 2>nul
 git push -u origin main
 
 if !ERRORLEVEL! EQU 0 (

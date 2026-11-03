@@ -478,6 +478,28 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
         </div>
       </div>
 
+      {/* Mobile Search for Android & Mobile Devices */}
+      <div className="md:hidden px-4 pb-2.5 pt-0.5 bg-white">
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+          <input
+            type="text"
+            placeholder="Search across 16 categories..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="w-full pl-8.5 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange('')}
+              className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-slate-600 p-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Category Navigation Bar */}
       <nav className="bg-slate-50/80 border-t border-slate-200/60 overflow-x-auto no-scrollbar py-2 px-4">
         <div className="container mx-auto flex items-center space-x-2 text-xs font-medium">
