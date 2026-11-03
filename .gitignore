@@ -7,6 +7,8 @@ __pycache__/
 backend/venv/
 backend/env/
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 data_storage/uploads/*
 data_storage/recordings/*

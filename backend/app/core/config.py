@@ -26,6 +26,17 @@ class Settings(BaseSettings):
             return v.lower() in ("true", "1", "t", "yes", "y", "dev", "development")
         return bool(v)
 
+    @field_validator("DATABASE_URL", mode="before")
+    def resolve_sqlite_path(cls, v):
+        if isinstance(v, str) and "sqlite+aiosqlite:///" in v:
+            prefix = "sqlite+aiosqlite:///"
+            path_part = v[len(prefix):]
+            if path_part.startswith("./") or path_part.startswith(".\\") or not Path(path_part).is_absolute():
+                clean_path = path_part.lstrip("./\\")
+                abs_db = (BASE_DIR / clean_path).resolve()
+                return f"sqlite+aiosqlite:///{abs_db.as_posix()}"
+        return v
+
     SECRET_KEY: str = Field(default="khaira-enterprise-voice-secret-key-prod-2026")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     ALGORITHM: str = "HS256"

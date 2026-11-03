@@ -37,7 +37,7 @@ export const CustomerStoreView: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
-  const PAGE_SIZE = 36;
+  const PAGE_SIZE = 100;
   const [cart, setCart] = useState<CartData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [festivalOffer, setFestivalOffer] = useState<any>(null);
@@ -65,14 +65,22 @@ export const CustomerStoreView: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [catsRes, prodsRes, festRes] = await Promise.all([
+        const results = await Promise.allSettled([
           api.getCategories(),
           api.getPublicProducts({ limit: PAGE_SIZE, offset: 0 }),
           api.getFestivalOffer()
         ]);
-        setCategories(catsRes.data);
-        setProducts(prodsRes.data);
-        setFestivalOffer(festRes.data);
+        if (results[0].status === 'fulfilled') {
+          setCategories(results[0].value.data || []);
+        }
+        if (results[1].status === 'fulfilled') {
+          const prods = results[1].value.data || [];
+          setProducts(prods);
+          setHasMore(prods.length >= PAGE_SIZE);
+        }
+        if (results[2].status === 'fulfilled') {
+          setFestivalOffer(results[2].value.data);
+        }
 
         // Fetch Cart if customer authenticated
         if (customerToken) {

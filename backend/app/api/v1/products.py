@@ -202,7 +202,7 @@ async def list_public_products(
     sort_by: Optional[str] = "featured", # featured, price_asc, price_desc, rating
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
-    limit: int = 50,
+    limit: int = 100,
     offset: int = 0,
     db: AsyncSession = Depends(get_db)
 ):
@@ -211,6 +211,8 @@ async def list_public_products(
     into one unified, independent e-commerce organization storefront.
     Auto-syncs from Live E-Commerce API (DummyJSON) if catalog has few items.
     """
+    if limit <= 0 or limit > 300:
+        limit = 300
     # 1. Check if DB needs auto-sync from live API
     count_stmt = select(func.count(Product.id))
     count_res = await db.execute(count_stmt)
